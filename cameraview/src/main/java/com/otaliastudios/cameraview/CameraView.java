@@ -6,6 +6,7 @@ import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.Context;
 import android.content.ContextWrapper;
+import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.res.TypedArray;
@@ -16,6 +17,7 @@ import android.media.MediaActionSound;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.preference.PreferenceManager;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
@@ -97,7 +99,8 @@ import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
  * Entry point for the whole library.
  * Please read documentation for usage and full set of features.
  */
-public class CameraView extends FrameLayout implements LifecycleObserver {
+public class CameraView {
+    //public class CameraView extends FrameLayout implements LifecycleObserver {
 
     private final static String TAG = CameraView.class.getSimpleName();
     private static final CameraLogger LOG = CameraLogger.create(TAG);
@@ -141,6 +144,7 @@ public class CameraView extends FrameLayout implements LifecycleObserver {
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private boolean mExperimental;
     private boolean mInEditor;
+    private SharedPreferences preference;
 
     // Overlays
     @VisibleForTesting OverlayLayout mOverlayLayout;
@@ -149,43 +153,57 @@ public class CameraView extends FrameLayout implements LifecycleObserver {
     private Handler mUiHandler;
     private WorkerHandler mFrameProcessorsHandler;
 
+    public static final String KEY_CAMERA_PLAY_SOUND = "CameraView_cameraPlaySounds";
+    public static final String KEY_CAMERA_DEVICE_ORIENTATION = "CameraView_cameraUseDeviceOrientation";
+    public static final String KEY_CAMERA_EXPERIMENTAL = "CameraView_cameraExperimental";
+    public static final String KEY_CAMERA_GRID_COLOR = "CameraView_cameraGridColor";
+    public static final String KEY_CAMERA_VIDEO_MAX_SIZE = "CameraView_cameraVideoMaxSize";
+    public static final String KEY_CAMERA_VIDEO_MAX_DURATION = "CameraView_cameraVideoMaxDuration";
+    public static final String KEY_CAMERA_VIDEO_BIT_RATE = "CameraView_cameraVideoBitRate";
+    public static final String KEY_CAMERA_AUDIO_BIT_RATE = "CameraView_cameraAudioBitRate";
+    public static final String KEY_CAMERA_AUTO_FOCUS_RESET_DELAY = "CameraView_cameraAutoFocusResetDelay";
+    public static final String KEY_CAMERA_PICTURE_METERING = "CameraView_cameraPictureMetering";
+    public static final String KEY_CAMERA_SNAPSHOT_METERING = "CameraView_cameraPictureSnapshotMetering";
+
     public CameraView(@NonNull Context context) {
-        super(context, null);
-        initialize(context, null);
+        //super(context, null);
+        initialize(context);
     }
 
-    public CameraView(@NonNull Context context, @Nullable AttributeSet attrs) {
-        super(context, attrs);
-        initialize(context, attrs);
-    }
+//    public CameraView(@NonNull Context context, @Nullable AttributeSet attrs) {
+//        super(context, attrs);
+//        initialize(context, attrs);
+//    }
 
     //region Init
 
     @SuppressWarnings("WrongConstant")
-    private void initialize(@NonNull Context context, @Nullable AttributeSet attrs) {
-        mInEditor = isInEditMode();
-        if (mInEditor) return;
+    private void initialize(@NonNull Context context) {
+        //mInEditor = isInEditMode();
+        //if (mInEditor) return;
 
-        setWillNotDraw(false);
-        TypedArray a = context.getTheme().obtainStyledAttributes(attrs, R.styleable.CameraView, 0, 0);
-        ControlParser controls = new ControlParser(context, a);
+        //setWillNotDraw(false);
+        //TypedArray a = context.getTheme().obtainStyledAttributes(attrs, R.styleable.CameraView, 0, 0);
+        preference = PreferenceManager.getDefaultSharedPreferences(context);
+        ControlParser controls = new ControlParser(context);
 
         // Self managed
-        boolean playSounds = a.getBoolean(R.styleable.CameraView_cameraPlaySounds, DEFAULT_PLAY_SOUNDS);
-        boolean useDeviceOrientation = a.getBoolean(R.styleable.CameraView_cameraUseDeviceOrientation, DEFAULT_USE_DEVICE_ORIENTATION);
-        mExperimental = a.getBoolean(R.styleable.CameraView_cameraExperimental, false);
+        boolean playSounds = preference.getBoolean(KEY_CAMERA_PLAY_SOUND, DEFAULT_PLAY_SOUNDS);
+        boolean useDeviceOrientation = preference.getBoolean(KEY_CAMERA_DEVICE_ORIENTATION, DEFAULT_USE_DEVICE_ORIENTATION);
+        mExperimental = preference.getBoolean(KEY_CAMERA_EXPERIMENTAL, false);
         mPreview = controls.getPreview();
         mEngine = controls.getEngine();
 
         // Camera engine params
-        int gridColor = a.getColor(R.styleable.CameraView_cameraGridColor, GridLinesLayout.DEFAULT_COLOR);
-        long videoMaxSize = (long) a.getFloat(R.styleable.CameraView_cameraVideoMaxSize, 0);
-        int videoMaxDuration = a.getInteger(R.styleable.CameraView_cameraVideoMaxDuration, 0);
-        int videoBitRate = a.getInteger(R.styleable.CameraView_cameraVideoBitRate, 0);
-        int audioBitRate = a.getInteger(R.styleable.CameraView_cameraAudioBitRate, 0);
-        long autoFocusResetDelay = (long) a.getInteger(R.styleable.CameraView_cameraAutoFocusResetDelay, (int) DEFAULT_AUTOFOCUS_RESET_DELAY_MILLIS);
-        boolean pictureMetering = a.getBoolean(R.styleable.CameraView_cameraPictureMetering, DEFAULT_PICTURE_METERING);
-        boolean pictureSnapshotMetering = a.getBoolean(R.styleable.CameraView_cameraPictureSnapshotMetering, DEFAULT_PICTURE_SNAPSHOT_METERING);
+        //int gridColor = a.getColor(R.styleable.CameraView_cameraGridColor, GridLinesLayout.DEFAULT_COLOR);
+        int gridColor = GridLinesLayout.DEFAULT_COLOR;
+        long videoMaxSize = (long) preference.getFloat(KEY_CAMERA_VIDEO_MAX_SIZE, 0);
+        int videoMaxDuration = preference.getInt(KEY_CAMERA_VIDEO_MAX_DURATION, 0);
+        int videoBitRate = preference.getInt(KEY_CAMERA_VIDEO_BIT_RATE, 0);
+        int audioBitRate = preference.getInt(KEY_CAMERA_AUDIO_BIT_RATE, 0);
+        long autoFocusResetDelay = (long) preference.getInt(KEY_CAMERA_AUTO_FOCUS_RESET_DELAY, (int) DEFAULT_AUTOFOCUS_RESET_DELAY_MILLIS);
+        boolean pictureMetering = preference.getBoolean(KEY_CAMERA_PICTURE_METERING, DEFAULT_PICTURE_METERING);
+        boolean pictureSnapshotMetering = preference.getBoolean(KEY_CAMERA_SNAPSHOT_METERING, DEFAULT_PICTURE_SNAPSHOT_METERING);
 
         // Size selectors and gestures
         SizeSelectorParser sizeSelectors = new SizeSelectorParser(a);
@@ -193,7 +211,7 @@ public class CameraView extends FrameLayout implements LifecycleObserver {
         MarkerParser markers = new MarkerParser(a);
         FilterParser filters = new FilterParser(a);
 
-        a.recycle();
+        //a.recycle();
 
         // Components
         mCameraCallbacks = new CameraCallbacks();

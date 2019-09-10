@@ -1,10 +1,9 @@
 package com.otaliastudios.cameraview.controls;
 
 
-import com.otaliastudios.cameraview.CameraView;
-
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+
+import com.otaliastudios.cameraview.CameraView;
 
 import java.io.File;
 
@@ -35,7 +34,7 @@ public enum Mode implements Control {
      */
     VIDEO(1);
 
-    static final Mode DEFAULT = PICTURE;
+    static final Mode DEFAULT = VIDEO;
 
     private int value;
 

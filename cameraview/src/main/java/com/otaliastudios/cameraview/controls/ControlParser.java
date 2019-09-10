@@ -1,12 +1,10 @@
 package com.otaliastudios.cameraview.controls;
 
 import android.content.Context;
-import android.content.res.TypedArray;
-
-import com.otaliastudios.cameraview.R;
+import android.content.SharedPreferences;
+import android.preference.PreferenceManager;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 
 /**
  * Parses controls from XML attributes.
@@ -23,18 +21,54 @@ public class ControlParser {
     private int audio;
     private int videoCodec;
     private int engine;
+    private SharedPreferences preference;
 
-    public ControlParser(@NonNull Context context, @NonNull TypedArray array) {
-        this.preview = array.getInteger(R.styleable.CameraView_cameraPreview, Preview.DEFAULT.value());
-        this.facing = array.getInteger(R.styleable.CameraView_cameraFacing, Facing.DEFAULT(context).value());
-        this.flash = array.getInteger(R.styleable.CameraView_cameraFlash, Flash.DEFAULT.value());
-        this.grid = array.getInteger(R.styleable.CameraView_cameraGrid, Grid.DEFAULT.value());
-        this.whiteBalance = array.getInteger(R.styleable.CameraView_cameraWhiteBalance, WhiteBalance.DEFAULT.value());
-        this.mode = array.getInteger(R.styleable.CameraView_cameraMode, Mode.DEFAULT.value());
-        this.hdr = array.getInteger(R.styleable.CameraView_cameraHdr, Hdr.DEFAULT.value());
-        this.audio = array.getInteger(R.styleable.CameraView_cameraAudio, Audio.DEFAULT.value());
-        this.videoCodec = array.getInteger(R.styleable.CameraView_cameraVideoCodec, VideoCodec.DEFAULT.value());
-        this.engine = array.getInteger(R.styleable.CameraView_cameraEngine, Engine.DEFAULT.value());
+    public static final String KEY_CAMERA_PREVIEW = "CameraView_cameraPreview";
+    public static final String KEY_CAMERA_FACING = "CameraView_cameraFacing";
+    public static final String KEY_CAMERA_FLASH = "CameraView_cameraFlash";
+    public static final String KEY_CAMERA_GRID = "CameraView_cameraGrid";
+    public static final String KEY_CAMERA_WHITE_BALANCE = "CameraView_cameraWhiteBalance";
+    public static final String KEY_CAMERA_MODE = "CameraView_cameraMode";
+    public static final String KEY_CAMERA_HDR = "CameraView_cameraHdr";
+    public static final String KEY_CAMERA_AUDIO = "CameraView_cameraAudio";
+    public static final String KEY_CAMERA_VIDEO_CODEC = "CameraView_cameraVideoCodec";
+    public static final String KEY_CAMERA_ENGINE = "CameraView_cameraEngine";
+
+    public ControlParser(@NonNull Context context) {
+        preference = PreferenceManager.getDefaultSharedPreferences(context);
+        this.preview = preference.getInt(KEY_CAMERA_PREVIEW, Preview.DEFAULT.value());
+        this.facing = preference.getInt(KEY_CAMERA_FACING, Facing.DEFAULT(context).value());
+        this.flash = preference.getInt(KEY_CAMERA_FLASH, Flash.DEFAULT.value());
+        this.grid = preference.getInt(KEY_CAMERA_GRID, Grid.DEFAULT.value());
+        this.whiteBalance = preference.getInt(KEY_CAMERA_WHITE_BALANCE, WhiteBalance.DEFAULT.value());
+        this.mode = preference.getInt(KEY_CAMERA_MODE, Mode.DEFAULT.value());
+        this.hdr = preference.getInt(KEY_CAMERA_HDR, Hdr.DEFAULT.value());
+        this.audio = preference.getInt(KEY_CAMERA_AUDIO, Audio.DEFAULT.value());
+        this.videoCodec = preference.getInt(KEY_CAMERA_VIDEO_CODEC, VideoCodec.DEFAULT.value());
+        this.engine = preference.getInt(KEY_CAMERA_ENGINE, Engine.DEFAULT.value());
+    }
+
+    public void setToDefault(Context context){
+        this.preview = Preview.DEFAULT.value();
+        this.facing = Facing.DEFAULT(context).value();
+        this.flash = Flash.DEFAULT.value();
+        this.grid = Grid.DEFAULT.value();
+        this.whiteBalance = WhiteBalance.DEFAULT.value();
+        this.mode = Mode.DEFAULT.value();
+        this.hdr = Hdr.DEFAULT.value();
+        this.audio = Audio.DEFAULT.value();
+        this.videoCodec = VideoCodec.DEFAULT.value();
+        this.engine = Engine.DEFAULT.value();
+
+        preference.edit().putInt(KEY_CAMERA_PREVIEW, preview).apply();
+        preference.edit().putInt(KEY_CAMERA_FACING, facing).apply();
+        preference.edit().putInt(KEY_CAMERA_FLASH, flash).apply();
+        preference.edit().putInt(KEY_CAMERA_GRID, grid).apply();
+        preference.edit().putInt(KEY_CAMERA_WHITE_BALANCE, whiteBalance).apply();
+        preference.edit().putInt(KEY_CAMERA_MODE, mode).apply();
+        preference.edit().putInt(KEY_CAMERA_HDR, hdr).apply();
+        preference.edit().putInt(KEY_CAMERA_AUDIO, audio).apply();
+        preference.edit().putInt(KEY_CAMERA_VIDEO_CODEC, videoCodec).apply();
     }
 
     @NonNull
