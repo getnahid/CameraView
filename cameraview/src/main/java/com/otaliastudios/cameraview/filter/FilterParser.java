@@ -1,5 +1,6 @@
 package com.otaliastudios.cameraview.filter;
 
+import android.content.SharedPreferences;
 import android.content.res.TypedArray;
 
 import androidx.annotation.NonNull;
@@ -13,9 +14,10 @@ import com.otaliastudios.cameraview.R;
 public class FilterParser {
 
     private Filter filter = null;
+    public static final String KEY_CAMERA_FILTER = "CameraView_cameraFilter";
 
-    public FilterParser(@NonNull TypedArray array) {
-        String filterName = array.getString(R.styleable.CameraView_cameraFilter);
+    public FilterParser(SharedPreferences preference) {
+        String filterName = preference.getString(KEY_CAMERA_FILTER, null);
         try {
             //noinspection ConstantConditions
             Class<?> filterClass = Class.forName(filterName);

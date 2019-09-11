@@ -1,6 +1,7 @@
 package com.otaliastudios.cameraview.markers;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.res.TypedArray;
 
 import com.otaliastudios.cameraview.R;
@@ -23,9 +24,10 @@ import androidx.annotation.Nullable;
 public class MarkerParser {
 
     private AutoFocusMarker autoFocusMarker = null;
+    public static final String KEY_CAMERA_AUTO_FOCUS_MARKET = "CameraView_cameraAutoFocusMarker";
 
-    public MarkerParser(@NonNull TypedArray array) {
-        String autoFocusName = array.getString(R.styleable.CameraView_cameraAutoFocusMarker);
+    public MarkerParser(SharedPreferences preference) {
+        String autoFocusName = preference.getString(KEY_CAMERA_AUTO_FOCUS_MARKET, null);
         if (autoFocusName != null) {
             try {
                 Class<?> autoFocusClass = Class.forName(autoFocusName);

@@ -133,9 +133,9 @@ public class CameraView {
     private Lifecycle mLifecycle;
 
     // Gestures
-    @VisibleForTesting PinchGestureFinder mPinchGestureFinder;
-    @VisibleForTesting TapGestureFinder mTapGestureFinder;
-    @VisibleForTesting ScrollGestureFinder mScrollGestureFinder;
+//    @VisibleForTesting PinchGestureFinder mPinchGestureFinder;
+//    @VisibleForTesting TapGestureFinder mTapGestureFinder;
+//    @VisibleForTesting ScrollGestureFinder mScrollGestureFinder;
 
     // Views
     @VisibleForTesting GridLinesLayout mGridLinesLayout;
@@ -207,9 +207,9 @@ public class CameraView {
 
         // Size selectors and gestures
         SizeSelectorParser sizeSelectors = new SizeSelectorParser(preference);
-        GestureParser gestures = new GestureParser(a);
-        MarkerParser markers = new MarkerParser(a);
-        FilterParser filters = new FilterParser(a);
+        //GestureParser gestures = new GestureParser(a);
+        MarkerParser markers = new MarkerParser(preference);
+        FilterParser filters = new FilterParser(preference);
 
         //a.recycle();
 
@@ -219,14 +219,15 @@ public class CameraView {
         mFrameProcessorsHandler = WorkerHandler.get("FrameProcessorsWorker");
 
         // Gestures
-        mPinchGestureFinder = new PinchGestureFinder(mCameraCallbacks);
-        mTapGestureFinder = new TapGestureFinder(mCameraCallbacks);
-        mScrollGestureFinder = new ScrollGestureFinder(mCameraCallbacks);
+//        mPinchGestureFinder = new PinchGestureFinder(mCameraCallbacks);
+//        mTapGestureFinder = new TapGestureFinder(mCameraCallbacks);
+//        mScrollGestureFinder = new ScrollGestureFinder(mCameraCallbacks);
 
         // Views
         mGridLinesLayout = new GridLinesLayout(context);
         mOverlayLayout = new OverlayLayout(context);
         mMarkerLayout = new MarkerLayout(context);
+
         addView(mGridLinesLayout);
         addView(mMarkerLayout);
         addView(mOverlayLayout);
@@ -260,11 +261,11 @@ public class CameraView {
         setAutoFocusResetDelay(autoFocusResetDelay);
 
         // Apply gestures
-        mapGesture(Gesture.TAP, gestures.getTapAction());
-        mapGesture(Gesture.LONG_TAP, gestures.getLongTapAction());
-        mapGesture(Gesture.PINCH, gestures.getPinchAction());
-        mapGesture(Gesture.SCROLL_HORIZONTAL, gestures.getHorizontalScrollAction());
-        mapGesture(Gesture.SCROLL_VERTICAL, gestures.getVerticalScrollAction());
+//        mapGesture(Gesture.TAP, gestures.getTapAction());
+//        mapGesture(Gesture.LONG_TAP, gestures.getLongTapAction());
+//        mapGesture(Gesture.PINCH, gestures.getPinchAction());
+//        mapGesture(Gesture.SCROLL_HORIZONTAL, gestures.getHorizontalScrollAction());
+//        mapGesture(Gesture.SCROLL_VERTICAL, gestures.getVerticalScrollAction());
 
         // Apply markers
         setAutoFocusMarker(markers.getAutoFocusMarker());
@@ -541,42 +542,42 @@ public class CameraView {
      * @param action which action should be assigned
      * @return true if this action could be assigned to this gesture
      */
-    public boolean mapGesture(@NonNull Gesture gesture, @NonNull GestureAction action) {
-        GestureAction none = GestureAction.NONE;
-        if (gesture.isAssignableTo(action)) {
-            mGestureMap.put(gesture, action);
-            switch (gesture) {
-                case PINCH:
-                    mPinchGestureFinder.setActive(mGestureMap.get(Gesture.PINCH) != none);
-                    break;
-                case TAP:
-                // case DOUBLE_TAP:
-                case LONG_TAP:
-                    mTapGestureFinder.setActive(
-                            mGestureMap.get(Gesture.TAP) != none ||
-                            // mGestureMap.get(Gesture.DOUBLE_TAP) != none ||
-                            mGestureMap.get(Gesture.LONG_TAP) != none);
-                    break;
-                case SCROLL_HORIZONTAL:
-                case SCROLL_VERTICAL:
-                    mScrollGestureFinder.setActive(
-                            mGestureMap.get(Gesture.SCROLL_HORIZONTAL) != none ||
-                            mGestureMap.get(Gesture.SCROLL_VERTICAL) != none);
-                    break;
-            }
-            return true;
-        }
-        mapGesture(gesture, none);
-        return false;
-    }
+//    public boolean mapGesture(@NonNull Gesture gesture, @NonNull GestureAction action) {
+//        GestureAction none = GestureAction.NONE;
+//        if (gesture.isAssignableTo(action)) {
+//            mGestureMap.put(gesture, action);
+//            switch (gesture) {
+//                case PINCH:
+//                    mPinchGestureFinder.setActive(mGestureMap.get(Gesture.PINCH) != none);
+//                    break;
+//                case TAP:
+//                // case DOUBLE_TAP:
+//                case LONG_TAP:
+//                    mTapGestureFinder.setActive(
+//                            mGestureMap.get(Gesture.TAP) != none ||
+//                            // mGestureMap.get(Gesture.DOUBLE_TAP) != none ||
+//                            mGestureMap.get(Gesture.LONG_TAP) != none);
+//                    break;
+//                case SCROLL_HORIZONTAL:
+//                case SCROLL_VERTICAL:
+//                    mScrollGestureFinder.setActive(
+//                            mGestureMap.get(Gesture.SCROLL_HORIZONTAL) != none ||
+//                            mGestureMap.get(Gesture.SCROLL_VERTICAL) != none);
+//                    break;
+//            }
+//            return true;
+//        }
+//        mapGesture(gesture, none);
+//        return false;
+//    }
 
     /**
      * Clears any action mapped to the given gesture.
      * @param gesture which gesture to clear
      */
-    public void clearGesture(@NonNull Gesture gesture) {
-        mapGesture(gesture, GestureAction.NONE);
-    }
+//    public void clearGesture(@NonNull Gesture gesture) {
+//        mapGesture(gesture, GestureAction.NONE);
+//    }
 
     /**
      * Returns the action currently mapped to the given gesture.
@@ -584,102 +585,102 @@ public class CameraView {
      * @param gesture which gesture to inspect
      * @return mapped action
      */
-    @NonNull
-    public GestureAction getGestureAction(@NonNull Gesture gesture) {
-        //noinspection ConstantConditions
-        return mGestureMap.get(gesture);
-    }
+//    @NonNull
+//    public GestureAction getGestureAction(@NonNull Gesture gesture) {
+//        //noinspection ConstantConditions
+//        return mGestureMap.get(gesture);
+//    }
 
-    @Override
-    public boolean onInterceptTouchEvent(MotionEvent ev) {
-        return true; // Steal our own events.
-    }
+//    @Override
+//    public boolean onInterceptTouchEvent(MotionEvent ev) {
+//        return true; // Steal our own events.
+//    }
 
-    @SuppressLint("ClickableViewAccessibility")
-    @Override
-    public boolean onTouchEvent(MotionEvent event) {
-        if (!isOpened()) return true;
-
-        // Pass to our own GestureLayouts
-        CameraOptions options = mCameraEngine.getCameraOptions(); // Non null
-        if (options == null) throw new IllegalStateException("Options should not be null here.");
-        if (mPinchGestureFinder.onTouchEvent(event)) {
-            LOG.i("onTouchEvent", "pinch!");
-            onGesture(mPinchGestureFinder, options);
-        } else if (mScrollGestureFinder.onTouchEvent(event)) {
-            LOG.i("onTouchEvent", "scroll!");
-            onGesture(mScrollGestureFinder, options);
-        } else if (mTapGestureFinder.onTouchEvent(event)) {
-            LOG.i("onTouchEvent", "tap!");
-            onGesture(mTapGestureFinder, options);
-        }
-
-        return true;
-    }
+//    @SuppressLint("ClickableViewAccessibility")
+//    @Override
+//    public boolean onTouchEvent(MotionEvent event) {
+//        if (!isOpened()) return true;
+//
+//        // Pass to our own GestureLayouts
+//        CameraOptions options = mCameraEngine.getCameraOptions(); // Non null
+//        if (options == null) throw new IllegalStateException("Options should not be null here.");
+//        if (mPinchGestureFinder.onTouchEvent(event)) {
+//            LOG.i("onTouchEvent", "pinch!");
+//            onGesture(mPinchGestureFinder, options);
+//        } else if (mScrollGestureFinder.onTouchEvent(event)) {
+//            LOG.i("onTouchEvent", "scroll!");
+//            onGesture(mScrollGestureFinder, options);
+//        } else if (mTapGestureFinder.onTouchEvent(event)) {
+//            LOG.i("onTouchEvent", "tap!");
+//            onGesture(mTapGestureFinder, options);
+//        }
+//
+//        return true;
+//    }
 
     // Some gesture layout detected a gesture. It's not known at this moment:
     // (1) if it was mapped to some action (we check here)
     // (2) if it's supported by the camera (CameraEngine checks)
-    private void onGesture(@NonNull GestureFinder source, @NonNull CameraOptions options) {
-        Gesture gesture = source.getGesture();
-        GestureAction action = mGestureMap.get(gesture);
-        PointF[] points = source.getPoints();
-        float oldValue, newValue;
-        //noinspection ConstantConditions
-        switch (action) {
-
-            case TAKE_PICTURE:
-                takePicture();
-                break;
-
-            case AUTO_FOCUS:
-                mCameraEngine.startAutoFocus(gesture, points[0]);
-                break;
-
-            case ZOOM:
-                oldValue = mCameraEngine.getZoomValue();
-                newValue = source.computeValue(oldValue, 0, 1);
-                if (newValue != oldValue) {
-                    mCameraEngine.setZoom(newValue, points, true);
-                }
-                break;
-
-            case EXPOSURE_CORRECTION:
-                oldValue = mCameraEngine.getExposureCorrectionValue();
-                float minValue = options.getExposureCorrectionMinValue();
-                float maxValue = options.getExposureCorrectionMaxValue();
-                newValue = source.computeValue(oldValue, minValue, maxValue);
-                if (newValue != oldValue) {
-                    float[] bounds = new float[]{minValue, maxValue};
-                    mCameraEngine.setExposureCorrection(newValue, bounds, points, true);
-                }
-                break;
-
-            case FILTER_CONTROL_1:
-                if (!mExperimental) break;
-                if (getFilter() instanceof OneParameterFilter) {
-                    OneParameterFilter filter = (OneParameterFilter) getFilter();
-                    oldValue = filter.getParameter1();
-                    newValue = source.computeValue(oldValue, 0, 1);
-                    if (newValue != oldValue) {
-                        filter.setParameter1(newValue);
-                    }
-                }
-                break;
-
-            case FILTER_CONTROL_2:
-                if (!mExperimental) break;
-                if (getFilter() instanceof TwoParameterFilter) {
-                    TwoParameterFilter filter = (TwoParameterFilter) getFilter();
-                    oldValue = filter.getParameter2();
-                    newValue = source.computeValue(oldValue, 0, 1);
-                    if (newValue != oldValue) {
-                        filter.setParameter2(newValue);
-                    }
-                }
-                break;
-        }
-    }
+//    private void onGesture(@NonNull GestureFinder source, @NonNull CameraOptions options) {
+//        Gesture gesture = source.getGesture();
+//        GestureAction action = mGestureMap.get(gesture);
+//        PointF[] points = source.getPoints();
+//        float oldValue, newValue;
+//        //noinspection ConstantConditions
+//        switch (action) {
+//
+//            case TAKE_PICTURE:
+//                takePicture();
+//                break;
+//
+//            case AUTO_FOCUS:
+//                mCameraEngine.startAutoFocus(gesture, points[0]);
+//                break;
+//
+//            case ZOOM:
+//                oldValue = mCameraEngine.getZoomValue();
+//                newValue = source.computeValue(oldValue, 0, 1);
+//                if (newValue != oldValue) {
+//                    mCameraEngine.setZoom(newValue, points, true);
+//                }
+//                break;
+//
+//            case EXPOSURE_CORRECTION:
+//                oldValue = mCameraEngine.getExposureCorrectionValue();
+//                float minValue = options.getExposureCorrectionMinValue();
+//                float maxValue = options.getExposureCorrectionMaxValue();
+//                newValue = source.computeValue(oldValue, minValue, maxValue);
+//                if (newValue != oldValue) {
+//                    float[] bounds = new float[]{minValue, maxValue};
+//                    mCameraEngine.setExposureCorrection(newValue, bounds, points, true);
+//                }
+//                break;
+//
+//            case FILTER_CONTROL_1:
+//                if (!mExperimental) break;
+//                if (getFilter() instanceof OneParameterFilter) {
+//                    OneParameterFilter filter = (OneParameterFilter) getFilter();
+//                    oldValue = filter.getParameter1();
+//                    newValue = source.computeValue(oldValue, 0, 1);
+//                    if (newValue != oldValue) {
+//                        filter.setParameter1(newValue);
+//                    }
+//                }
+//                break;
+//
+//            case FILTER_CONTROL_2:
+//                if (!mExperimental) break;
+//                if (getFilter() instanceof TwoParameterFilter) {
+//                    TwoParameterFilter filter = (TwoParameterFilter) getFilter();
+//                    oldValue = filter.getParameter2();
+//                    newValue = source.computeValue(oldValue, 0, 1);
+//                    if (newValue != oldValue) {
+//                        filter.setParameter2(newValue);
+//                    }
+//                }
+//                break;
+//        }
+//    }
 
     //endregion
 
