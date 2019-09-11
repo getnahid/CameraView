@@ -206,7 +206,7 @@ public class CameraView {
         boolean pictureSnapshotMetering = preference.getBoolean(KEY_CAMERA_SNAPSHOT_METERING, DEFAULT_PICTURE_SNAPSHOT_METERING);
 
         // Size selectors and gestures
-        SizeSelectorParser sizeSelectors = new SizeSelectorParser(a);
+        SizeSelectorParser sizeSelectors = new SizeSelectorParser(preference);
         GestureParser gestures = new GestureParser(a);
         MarkerParser markers = new MarkerParser(a);
         FilterParser filters = new FilterParser(a);

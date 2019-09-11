@@ -25,6 +25,8 @@ public class SizeSelectorParser {
     public static final String KEY_PICTURE_SIZE_MIN_AREA = "CameraView_cameraPictureSizeMinArea";
     public static final String KEY_PICTURE_SIZE_MAX_AREA = "CameraView_cameraPictureSizeMaxArea";
     public static final String KEY_PICTURE_SIZE_ASPECT_RATIO = "CameraView_cameraPictureSizeAspectRatio";
+    public static final String KEY_PICTURE_SIZE_SMALLEST = "CameraView_cameraPictureSizeSmallest";
+    public static final String KEY_PICTURE_SIZE_BIGGEST = "CameraView_cameraPictureSizeBiggest";
 
     public static final String KEY_VIDEO_SIZE_MIN_WIDTH = "CameraView_cameraVideoSizeMinWidth";
     public static final String KEY_VIDEO_SIZE_MAX_WIDTH = "CameraView_cameraVideoSizeMaxWidth";
@@ -33,64 +35,66 @@ public class SizeSelectorParser {
     public static final String KEY_VIDEO_SIZE_MIN_AREA = "CameraView_cameraVideoSizeMinArea";
     public static final String KEY_VIDEO_SIZE_MAX_AREA = "CameraView_cameraVideoSizeMaxArea";
     public static final String KEY_VIDEO_SIZE_ASPECT_RATIO = "CameraView_cameraVideoSizeAspectRatio";
+    public static final String KEY_VIDEO_SIZE_SMALLEST = "CameraView_cameraVideoSizeSmallest";
+    public static final String KEY_VIDEO_SIZE_BIGGEST = "CameraView_cameraVideoSizeBiggest";
 
     public SizeSelectorParser(SharedPreferences preference) {
         List<SizeSelector> pictureConstraints = new ArrayList<>(3);
-        //if (array.hasValue(R.styleable.CameraView_cameraPictureSizeMinWidth)) {
-            pictureConstraints.add(SizeSelectors.minWidth(preference.getInt(R.styleable.CameraView_cameraPictureSizeMinWidth, 0)));
-        //}
-        //if (array.hasValue(R.styleable.CameraView_cameraPictureSizeMaxWidth)) {
-            pictureConstraints.add(SizeSelectors.maxWidth(array.getInteger(R.styleable.CameraView_cameraPictureSizeMaxWidth, 0)));
-        //}
-        //if (array.hasValue(R.styleable.CameraView_cameraPictureSizeMinHeight)) {
-            pictureConstraints.add(SizeSelectors.minHeight(array.getInteger(R.styleable.CameraView_cameraPictureSizeMinHeight, 0)));
-        //}
-        //if (array.hasValue(R.styleable.CameraView_cameraPictureSizeMaxHeight)) {
-            pictureConstraints.add(SizeSelectors.maxHeight(array.getInteger(R.styleable.CameraView_cameraPictureSizeMaxHeight, 0)));
-        //}
-        //if (array.hasValue(R.styleable.CameraView_cameraPictureSizeMinArea)) {
-            pictureConstraints.add(SizeSelectors.minArea(array.getInteger(R.styleable.CameraView_cameraPictureSizeMinArea, 0)));
-        //}
-        //if (array.hasValue(R.styleable.CameraView_cameraPictureSizeMaxArea)) {
-            pictureConstraints.add(SizeSelectors.maxArea(array.getInteger(R.styleable.CameraView_cameraPictureSizeMaxArea, 0)));
-        //}
-        //if (array.hasValue(R.styleable.CameraView_cameraPictureSizeAspectRatio)) {
+        if (preference.getInt(KEY_PICTURE_SIZE_MIN_WIDTH, 0) != 0) {
+            pictureConstraints.add(SizeSelectors.minWidth(preference.getInt(KEY_PICTURE_SIZE_MIN_WIDTH, 0)));
+        }
+        if (preference.getInt(KEY_PICTURE_SIZE_MAX_WIDTH, 0) != 0) {
+            pictureConstraints.add(SizeSelectors.maxWidth(preference.getInt(KEY_PICTURE_SIZE_MAX_WIDTH, 0)));
+        }
+        if (preference.getInt(KEY_PICTURE_SIZE_MIN_HEIGHT, 0) != 0) {
+            pictureConstraints.add(SizeSelectors.minHeight(preference.getInt(KEY_PICTURE_SIZE_MIN_HEIGHT, 0)));
+        }
+        if (preference.getInt(KEY_PICTURE_SIZE_MAX_HEIGHT, 0) != 0) {
+            pictureConstraints.add(SizeSelectors.maxHeight(preference.getInt(KEY_PICTURE_SIZE_MAX_HEIGHT, 0)));
+        }
+        if (preference.getInt(KEY_PICTURE_SIZE_MIN_AREA, 0) != 0) {
+            pictureConstraints.add(SizeSelectors.minArea(preference.getInt(KEY_PICTURE_SIZE_MIN_AREA, 0)));
+        }
+        if (preference.getInt(KEY_PICTURE_SIZE_MAX_AREA, 0) != 0) {
+            pictureConstraints.add(SizeSelectors.maxArea(preference.getInt(KEY_PICTURE_SIZE_MAX_AREA, 0)));
+        }
+        if (preference.getString(KEY_PICTURE_SIZE_ASPECT_RATIO, null) != null) {
             //noinspection ConstantConditions
-            pictureConstraints.add(SizeSelectors.aspectRatio(AspectRatio.parse(array.getString(R.styleable.CameraView_cameraPictureSizeAspectRatio)), 0));
-        //}
+            pictureConstraints.add(SizeSelectors.aspectRatio(AspectRatio.parse(preference.getString(KEY_PICTURE_SIZE_ASPECT_RATIO,null)), 0));
+        }
 
-        if (array.getBoolean(R.styleable.CameraView_cameraPictureSizeSmallest, false)) pictureConstraints.add(SizeSelectors.smallest());
-        if (array.getBoolean(R.styleable.CameraView_cameraPictureSizeBiggest, false)) pictureConstraints.add(SizeSelectors.biggest());
+        if (preference.getBoolean(KEY_PICTURE_SIZE_SMALLEST, false)) pictureConstraints.add(SizeSelectors.smallest());
+        if (preference.getBoolean(KEY_PICTURE_SIZE_BIGGEST, false)) pictureConstraints.add(SizeSelectors.biggest());
         pictureSizeSelector = !pictureConstraints.isEmpty() ?
                 SizeSelectors.and(pictureConstraints.toArray(new SizeSelector[0])) :
                 SizeSelectors.biggest();
 
         // Video size selector
         List<SizeSelector> videoConstraints = new ArrayList<>(3);
-        //if (array.hasValue(R.styleable.CameraView_cameraVideoSizeMinWidth)) {
-            videoConstraints.add(SizeSelectors.minWidth(array.getInteger(R.styleable.CameraView_cameraVideoSizeMinWidth, 0)));
-        //}
-        //if (array.hasValue(R.styleable.CameraView_cameraVideoSizeMaxWidth)) {
-            videoConstraints.add(SizeSelectors.maxWidth(array.getInteger(R.styleable.CameraView_cameraVideoSizeMaxWidth, 0)));
-        //}
-        //if (array.hasValue(R.styleable.CameraView_cameraVideoSizeMinHeight)) {
-            videoConstraints.add(SizeSelectors.minHeight(array.getInteger(R.styleable.CameraView_cameraVideoSizeMinHeight, 0)));
-        //}
-        //if (array.hasValue(R.styleable.CameraView_cameraVideoSizeMaxHeight)) {
-            videoConstraints.add(SizeSelectors.maxHeight(array.getInteger(R.styleable.CameraView_cameraVideoSizeMaxHeight, 0)));
-        //}
-        //if (array.hasValue(R.styleable.CameraView_cameraVideoSizeMinArea)) {
-            videoConstraints.add(SizeSelectors.minArea(array.getInteger(R.styleable.CameraView_cameraVideoSizeMinArea, 0)));
-        //}
-        //if (array.hasValue(R.styleable.CameraView_cameraVideoSizeMaxArea)) {
-            videoConstraints.add(SizeSelectors.maxArea(array.getInteger(R.styleable.CameraView_cameraVideoSizeMaxArea, 0)));
-        //}
-        //if (array.hasValue(R.styleable.CameraView_cameraVideoSizeAspectRatio)) {
+        if (preference.getInt(KEY_VIDEO_SIZE_MIN_WIDTH, 0) != 0) {
+            videoConstraints.add(SizeSelectors.minWidth(preference.getInt(KEY_VIDEO_SIZE_MIN_WIDTH, 0)));
+        }
+        if (preference.getInt(KEY_VIDEO_SIZE_MAX_WIDTH, 0) != 0) {
+            videoConstraints.add(SizeSelectors.maxWidth(preference.getInt(KEY_VIDEO_SIZE_MAX_WIDTH, 0)));
+        }
+        if (preference.getInt(KEY_VIDEO_SIZE_MIN_HEIGHT, 0) != 0) {
+            videoConstraints.add(SizeSelectors.minHeight(preference.getInt(KEY_VIDEO_SIZE_MIN_HEIGHT, 0)));
+        }
+        if (preference.getInt(KEY_VIDEO_SIZE_MAX_HEIGHT, 0) != 0) {
+            videoConstraints.add(SizeSelectors.maxHeight(preference.getInt(KEY_VIDEO_SIZE_MAX_HEIGHT, 0)));
+        }
+        if (preference.getInt(KEY_VIDEO_SIZE_MIN_AREA, 0) != 0) {
+            videoConstraints.add(SizeSelectors.minArea(preference.getInt(KEY_VIDEO_SIZE_MIN_AREA, 0)));
+        }
+        if (preference.getInt(KEY_VIDEO_SIZE_MAX_AREA, 0) != 0) {
+            videoConstraints.add(SizeSelectors.maxArea(preference.getInt(KEY_VIDEO_SIZE_MAX_AREA, 0)));
+        }
+        if (preference.getString(KEY_VIDEO_SIZE_ASPECT_RATIO, null) != null) {
             //noinspection ConstantConditions
-            videoConstraints.add(SizeSelectors.aspectRatio(AspectRatio.parse(array.getString(R.styleable.CameraView_cameraVideoSizeAspectRatio)), 0));
-        //}
-        if (array.getBoolean(R.styleable.CameraView_cameraVideoSizeSmallest, false)) videoConstraints.add(SizeSelectors.smallest());
-        if (array.getBoolean(R.styleable.CameraView_cameraVideoSizeBiggest, false)) videoConstraints.add(SizeSelectors.biggest());
+            videoConstraints.add(SizeSelectors.aspectRatio(AspectRatio.parse(preference.getString(KEY_VIDEO_SIZE_ASPECT_RATIO, null)), 0));
+        }
+        if (preference.getBoolean(KEY_VIDEO_SIZE_SMALLEST, false)) videoConstraints.add(SizeSelectors.smallest());
+        if (preference.getBoolean(KEY_VIDEO_SIZE_BIGGEST, false)) videoConstraints.add(SizeSelectors.biggest());
         videoSizeSelector = !videoConstraints.isEmpty() ?
                 SizeSelectors.and(videoConstraints.toArray(new SizeSelector[0])) :
                 SizeSelectors.biggest();
