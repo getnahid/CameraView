@@ -131,15 +131,6 @@ public class CameraView {
     @VisibleForTesting List<CameraListener> mListeners = new CopyOnWriteArrayList<>();
     @VisibleForTesting List<FrameProcessor> mFrameProcessors = new CopyOnWriteArrayList<>();
     private Lifecycle mLifecycle;
-
-    // Gestures
-//    @VisibleForTesting PinchGestureFinder mPinchGestureFinder;
-//    @VisibleForTesting TapGestureFinder mTapGestureFinder;
-//    @VisibleForTesting ScrollGestureFinder mScrollGestureFinder;
-
-    // Views
-    @VisibleForTesting GridLinesLayout mGridLinesLayout;
-    @VisibleForTesting MarkerLayout mMarkerLayout;
     private boolean mKeepScreenOn;
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private boolean mExperimental;
@@ -152,6 +143,7 @@ public class CameraView {
     // Threading
     private Handler mUiHandler;
     private WorkerHandler mFrameProcessorsHandler;
+    private Context context;
 
     public static final String KEY_CAMERA_PLAY_SOUND = "CameraView_cameraPlaySounds";
     public static final String KEY_CAMERA_DEVICE_ORIENTATION = "CameraView_cameraUseDeviceOrientation";
@@ -167,6 +159,7 @@ public class CameraView {
 
     public CameraView(@NonNull Context context) {
         //super(context, null);
+        this.context = context;
         initialize(context);
     }
 
@@ -218,20 +211,6 @@ public class CameraView {
         mUiHandler = new Handler(Looper.getMainLooper());
         mFrameProcessorsHandler = WorkerHandler.get("FrameProcessorsWorker");
 
-        // Gestures
-//        mPinchGestureFinder = new PinchGestureFinder(mCameraCallbacks);
-//        mTapGestureFinder = new TapGestureFinder(mCameraCallbacks);
-//        mScrollGestureFinder = new ScrollGestureFinder(mCameraCallbacks);
-
-        // Views
-        mGridLinesLayout = new GridLinesLayout(context);
-        mOverlayLayout = new OverlayLayout(context);
-        mMarkerLayout = new MarkerLayout(context);
-
-        addView(mGridLinesLayout);
-        addView(mMarkerLayout);
-        addView(mOverlayLayout);
-
         // Create the engine
         doInstantiateEngine();
 
@@ -260,16 +239,6 @@ public class CameraView {
         setVideoBitRate(videoBitRate);
         setAutoFocusResetDelay(autoFocusResetDelay);
 
-        // Apply gestures
-//        mapGesture(Gesture.TAP, gestures.getTapAction());
-//        mapGesture(Gesture.LONG_TAP, gestures.getLongTapAction());
-//        mapGesture(Gesture.PINCH, gestures.getPinchAction());
-//        mapGesture(Gesture.SCROLL_HORIZONTAL, gestures.getHorizontalScrollAction());
-//        mapGesture(Gesture.SCROLL_VERTICAL, gestures.getVerticalScrollAction());
-
-        // Apply markers
-        setAutoFocusMarker(markers.getAutoFocusMarker());
-
         // Apply filters
         setFilter(filters.getFilter());
 
@@ -294,15 +263,19 @@ public class CameraView {
      * However, in tests, we might want to create the preview right after constructor.
      */
     @VisibleForTesting
-    void doInstantiatePreview() {
+    void doInstantiatePreview(ViewGroup parent) {
         LOG.w("doInstantiateEngine:", "instantiating. preview:", mPreview);
-        mCameraPreview = instantiatePreview(mPreview, getContext(), this);
+        mCameraPreview = instantiatePreview(mPreview, getContext(), parent);
         LOG.w("doInstantiateEngine:", "instantiated. preview:", mCameraPreview.getClass().getSimpleName());
         mCameraEngine.setPreview(mCameraPreview);
         if (mPendingFilter != null) {
             setFilter(mPendingFilter);
             mPendingFilter = null;
         }
+    }
+
+    private Context getContext(){
+        return context;
     }
 
     /**
@@ -348,341 +321,26 @@ public class CameraView {
         }
     }
 
-    @Override
-    protected void onAttachedToWindow() {
-        super.onAttachedToWindow();
+    //@Override
+    protected void onAttachedToWindow(ViewGroup parent) {
+        //super.onAttachedToWindow();
         if (mInEditor) return;
         if (mCameraPreview == null) {
             // isHardwareAccelerated will return the real value only after we are
             // attached. That's why we instantiate the preview here.
-            doInstantiatePreview();
+            doInstantiatePreview(parent);
         }
         mOrientationHelper.enable(getContext());
     }
 
-    @Override
+    //@Override
     protected void onDetachedFromWindow() {
         if (!mInEditor) mOrientationHelper.disable();
-        super.onDetachedFromWindow();
+        //super.onDetachedFromWindow();
     }
 
     //endregion
 
-    //region Measuring behavior
-
-    private String ms(int mode) {
-        switch (mode) {
-            case AT_MOST: return "AT_MOST";
-            case EXACTLY: return "EXACTLY";
-            case UNSPECIFIED: return "UNSPECIFIED";
-        }
-        return null;
-    }
-
-    /**
-     * Measuring is basically controlled by layout params width and height.
-     * The basic semantics are:
-     *
-     * - MATCH_PARENT: CameraView should completely fill this dimension, even if this might mean
-     *                 not respecting the preview aspect ratio.
-     * - WRAP_CONTENT: CameraView should try to adapt this dimension to respect the preview
-     *                 aspect ratio.
-     *
-     * When both dimensions are MATCH_PARENT, CameraView will fill its
-     * parent no matter the preview. Thanks to what happens in {@link CameraPreview}, this acts like
-     * a CENTER CROP scale type.
-     *
-     * When both dimensions are WRAP_CONTENT, CameraView will take the biggest dimensions that
-     * fit the preview aspect ratio. This acts like a CENTER INSIDE scale type.
-     */
-    @Override
-    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        if (mInEditor) {
-            final int width = MeasureSpec.getSize(widthMeasureSpec);
-            final int height = MeasureSpec.getSize(heightMeasureSpec);
-            super.onMeasure(MeasureSpec.makeMeasureSpec(width, EXACTLY),
-                    MeasureSpec.makeMeasureSpec(height, EXACTLY));
-            return;
-        }
-
-        Size previewSize = mCameraEngine.getPreviewStreamSize(Reference.VIEW);
-        if (previewSize == null) {
-            LOG.w("onMeasure:", "surface is not ready. Calling default behavior.");
-            super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-            return;
-        }
-
-        // Let's which dimensions need to be adapted.
-        int widthMode = MeasureSpec.getMode(widthMeasureSpec);
-        int heightMode = MeasureSpec.getMode(heightMeasureSpec);
-        final int widthValue = MeasureSpec.getSize(widthMeasureSpec);
-        final int heightValue = MeasureSpec.getSize(heightMeasureSpec);
-        final float previewWidth = previewSize.getWidth();
-        final float previewHeight = previewSize.getHeight();
-
-        // Pre-process specs
-        final ViewGroup.LayoutParams lp = getLayoutParams();
-        if (!mCameraPreview.supportsCropping()) {
-            // We can't allow EXACTLY constraints in this case.
-            if (widthMode == EXACTLY) widthMode = AT_MOST;
-            if (heightMode == EXACTLY) heightMode = AT_MOST;
-        } else {
-            // If MATCH_PARENT is interpreted as AT_MOST, transform to EXACTLY
-            // to be consistent with our semantics (and our docs).
-            if (widthMode == AT_MOST && lp.width == MATCH_PARENT) widthMode = EXACTLY;
-            if (heightMode == AT_MOST && lp.height == MATCH_PARENT) heightMode = EXACTLY;
-        }
-
-        LOG.i("onMeasure:", "requested dimensions are", "(" + widthValue + "[" + ms(widthMode) + "]x" +
-                heightValue + "[" + ms(heightMode) + "])");
-        LOG.i("onMeasure:",  "previewSize is", "(" + previewWidth + "x" + previewHeight + ")");
-
-        // (1) If we have fixed dimensions (either 300dp or MATCH_PARENT), there's nothing we should do,
-        // other than respect it. The preview will eventually be cropped at the sides (by PreviewImpl scaling)
-        // except the case in which these fixed dimensions manage to fit exactly the preview aspect ratio.
-        if (widthMode == EXACTLY && heightMode == EXACTLY) {
-            LOG.i("onMeasure:", "both are MATCH_PARENT or fixed value. We adapt.",
-                    "This means CROP_CENTER.", "(" + widthValue + "x" + heightValue + ")");
-            super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-            return;
-        }
-
-        // (2) If both dimensions are free, with no limits, then our size will be exactly the
-        // preview size. This can happen rarely, for example in 2d scrollable containers.
-        if (widthMode == UNSPECIFIED && heightMode == UNSPECIFIED) {
-            LOG.i("onMeasure:", "both are completely free.",
-                    "We respect that and extend to the whole preview size.",
-                    "(" + previewWidth + "x" + previewHeight + ")");
-            super.onMeasure(
-                    MeasureSpec.makeMeasureSpec((int) previewWidth, EXACTLY),
-                    MeasureSpec.makeMeasureSpec((int) previewHeight, EXACTLY));
-            return;
-        }
-
-        // It's sure now that at least one dimension can be determined (either because EXACTLY or AT_MOST).
-        // This starts to seem a pleasant situation.
-
-        // (3) If one of the dimension is completely free (e.g. in a scrollable container),
-        // take the other and fit the ratio.
-        // One of the two might be AT_MOST, but we use the value anyway.
-        float ratio = previewHeight / previewWidth;
-        if (widthMode == UNSPECIFIED || heightMode == UNSPECIFIED) {
-            boolean freeWidth = widthMode == UNSPECIFIED;
-            int height, width;
-            if (freeWidth) {
-                height = heightValue;
-                width = Math.round(height / ratio);
-            } else {
-                width = widthValue;
-                height = Math.round(width * ratio);
-            }
-            LOG.i("onMeasure:", "one dimension was free, we adapted it to fit the aspect ratio.",
-                    "(" + width + "x" + height + ")");
-            super.onMeasure(MeasureSpec.makeMeasureSpec(width, EXACTLY),
-                    MeasureSpec.makeMeasureSpec(height, EXACTLY));
-            return;
-        }
-
-        // (4) At this point both dimensions are either AT_MOST-AT_MOST, EXACTLY-AT_MOST or AT_MOST-EXACTLY.
-        // Let's manage this sanely. If only one is EXACTLY, we can TRY to fit the aspect ratio,
-        // but it is not guaranteed to succeed. It depends on the AT_MOST value of the other dimensions.
-        if (widthMode == EXACTLY || heightMode == EXACTLY) {
-            boolean freeWidth = widthMode == AT_MOST;
-            int height, width;
-            if (freeWidth) {
-                height = heightValue;
-                width = Math.min(Math.round(height / ratio), widthValue);
-            } else {
-                width = widthValue;
-                height = Math.min(Math.round(width * ratio), heightValue);
-            }
-            LOG.i("onMeasure:", "one dimension was EXACTLY, another AT_MOST.",
-                    "We have TRIED to fit the aspect ratio, but it's not guaranteed.",
-                    "(" + width + "x" + height + ")");
-            super.onMeasure(MeasureSpec.makeMeasureSpec(width, EXACTLY),
-                    MeasureSpec.makeMeasureSpec(height, EXACTLY));
-            return;
-        }
-
-        // (5) Last case, AT_MOST and AT_MOST. Here we can SURELY fit the aspect ratio by
-        // filling one dimension and adapting the other.
-        int height, width;
-        float atMostRatio = (float) heightValue / (float) widthValue;
-        if (atMostRatio >= ratio) {
-            // We must reduce height.
-            width = widthValue;
-            height = Math.round(width * ratio);
-        } else {
-            height = heightValue;
-            width = Math.round(height / ratio);
-        }
-        LOG.i("onMeasure:", "both dimension were AT_MOST.",
-                "We fit the preview aspect ratio.",
-                "(" + width + "x" + height + ")");
-        super.onMeasure(MeasureSpec.makeMeasureSpec(width, EXACTLY),
-                MeasureSpec.makeMeasureSpec(height, EXACTLY));
-    }
-
-    //endregion
-
-    //region Gesture APIs
-
-    /**
-     * Maps a {@link Gesture} to a certain gesture action.
-     * For example, you can assign zoom control to the pinch gesture by just calling:
-     * <code>
-     *     cameraView.mapGesture(Gesture.PINCH, GestureAction.ZOOM);
-     * </code>
-     *
-     * Not all actions can be assigned to a certain gesture. For example, zoom control can't be
-     * assigned to the Gesture.TAP gesture. Look at {@link Gesture} to know more.
-     * This method returns false if they are not assignable.
-     *
-     * @param gesture which gesture to map
-     * @param action which action should be assigned
-     * @return true if this action could be assigned to this gesture
-     */
-//    public boolean mapGesture(@NonNull Gesture gesture, @NonNull GestureAction action) {
-//        GestureAction none = GestureAction.NONE;
-//        if (gesture.isAssignableTo(action)) {
-//            mGestureMap.put(gesture, action);
-//            switch (gesture) {
-//                case PINCH:
-//                    mPinchGestureFinder.setActive(mGestureMap.get(Gesture.PINCH) != none);
-//                    break;
-//                case TAP:
-//                // case DOUBLE_TAP:
-//                case LONG_TAP:
-//                    mTapGestureFinder.setActive(
-//                            mGestureMap.get(Gesture.TAP) != none ||
-//                            // mGestureMap.get(Gesture.DOUBLE_TAP) != none ||
-//                            mGestureMap.get(Gesture.LONG_TAP) != none);
-//                    break;
-//                case SCROLL_HORIZONTAL:
-//                case SCROLL_VERTICAL:
-//                    mScrollGestureFinder.setActive(
-//                            mGestureMap.get(Gesture.SCROLL_HORIZONTAL) != none ||
-//                            mGestureMap.get(Gesture.SCROLL_VERTICAL) != none);
-//                    break;
-//            }
-//            return true;
-//        }
-//        mapGesture(gesture, none);
-//        return false;
-//    }
-
-    /**
-     * Clears any action mapped to the given gesture.
-     * @param gesture which gesture to clear
-     */
-//    public void clearGesture(@NonNull Gesture gesture) {
-//        mapGesture(gesture, GestureAction.NONE);
-//    }
-
-    /**
-     * Returns the action currently mapped to the given gesture.
-     *
-     * @param gesture which gesture to inspect
-     * @return mapped action
-     */
-//    @NonNull
-//    public GestureAction getGestureAction(@NonNull Gesture gesture) {
-//        //noinspection ConstantConditions
-//        return mGestureMap.get(gesture);
-//    }
-
-//    @Override
-//    public boolean onInterceptTouchEvent(MotionEvent ev) {
-//        return true; // Steal our own events.
-//    }
-
-//    @SuppressLint("ClickableViewAccessibility")
-//    @Override
-//    public boolean onTouchEvent(MotionEvent event) {
-//        if (!isOpened()) return true;
-//
-//        // Pass to our own GestureLayouts
-//        CameraOptions options = mCameraEngine.getCameraOptions(); // Non null
-//        if (options == null) throw new IllegalStateException("Options should not be null here.");
-//        if (mPinchGestureFinder.onTouchEvent(event)) {
-//            LOG.i("onTouchEvent", "pinch!");
-//            onGesture(mPinchGestureFinder, options);
-//        } else if (mScrollGestureFinder.onTouchEvent(event)) {
-//            LOG.i("onTouchEvent", "scroll!");
-//            onGesture(mScrollGestureFinder, options);
-//        } else if (mTapGestureFinder.onTouchEvent(event)) {
-//            LOG.i("onTouchEvent", "tap!");
-//            onGesture(mTapGestureFinder, options);
-//        }
-//
-//        return true;
-//    }
-
-    // Some gesture layout detected a gesture. It's not known at this moment:
-    // (1) if it was mapped to some action (we check here)
-    // (2) if it's supported by the camera (CameraEngine checks)
-//    private void onGesture(@NonNull GestureFinder source, @NonNull CameraOptions options) {
-//        Gesture gesture = source.getGesture();
-//        GestureAction action = mGestureMap.get(gesture);
-//        PointF[] points = source.getPoints();
-//        float oldValue, newValue;
-//        //noinspection ConstantConditions
-//        switch (action) {
-//
-//            case TAKE_PICTURE:
-//                takePicture();
-//                break;
-//
-//            case AUTO_FOCUS:
-//                mCameraEngine.startAutoFocus(gesture, points[0]);
-//                break;
-//
-//            case ZOOM:
-//                oldValue = mCameraEngine.getZoomValue();
-//                newValue = source.computeValue(oldValue, 0, 1);
-//                if (newValue != oldValue) {
-//                    mCameraEngine.setZoom(newValue, points, true);
-//                }
-//                break;
-//
-//            case EXPOSURE_CORRECTION:
-//                oldValue = mCameraEngine.getExposureCorrectionValue();
-//                float minValue = options.getExposureCorrectionMinValue();
-//                float maxValue = options.getExposureCorrectionMaxValue();
-//                newValue = source.computeValue(oldValue, minValue, maxValue);
-//                if (newValue != oldValue) {
-//                    float[] bounds = new float[]{minValue, maxValue};
-//                    mCameraEngine.setExposureCorrection(newValue, bounds, points, true);
-//                }
-//                break;
-//
-//            case FILTER_CONTROL_1:
-//                if (!mExperimental) break;
-//                if (getFilter() instanceof OneParameterFilter) {
-//                    OneParameterFilter filter = (OneParameterFilter) getFilter();
-//                    oldValue = filter.getParameter1();
-//                    newValue = source.computeValue(oldValue, 0, 1);
-//                    if (newValue != oldValue) {
-//                        filter.setParameter1(newValue);
-//                    }
-//                }
-//                break;
-//
-//            case FILTER_CONTROL_2:
-//                if (!mExperimental) break;
-//                if (getFilter() instanceof TwoParameterFilter) {
-//                    TwoParameterFilter filter = (TwoParameterFilter) getFilter();
-//                    oldValue = filter.getParameter2();
-//                    newValue = source.computeValue(oldValue, 0, 1);
-//                    if (newValue != oldValue) {
-//                        filter.setParameter2(newValue);
-//                    }
-//                }
-//                break;
-//        }
-//    }
-
-    //endregion
 
     //region Lifecycle APIs
 
@@ -1253,16 +911,6 @@ public class CameraView {
         return mCameraEngine.getAudio();
     }
 
-    /**
-     * Sets an {@link AutoFocusMarker} to be notified of metering start, end and fail events
-     * so that it can draw elements on screen.
-     *
-     * @param autoFocusMarker the marker, or null
-     */
-    public void setAutoFocusMarker(@Nullable AutoFocusMarker autoFocusMarker) {
-        mAutoFocusMarker = autoFocusMarker;
-        mMarkerLayout.onMarker(MarkerLayout.TYPE_AUTOFOCUS, autoFocusMarker);
-    }
 
     /**
      * Sets the current delay in milliseconds to reset the focus after a metering event.
@@ -2177,28 +1825,6 @@ public class CameraView {
                     }
                 }
             });
-        }
-    }
-
-    //endregion
-
-    //region Overlays
-
-    @Override
-    public LayoutParams generateLayoutParams(AttributeSet attributeSet) {
-        if (!mInEditor && mOverlayLayout.isOverlay(attributeSet)) {
-            return mOverlayLayout.generateLayoutParams(attributeSet);
-        }
-        return super.generateLayoutParams(attributeSet);
-    }
-
-    // We don't support removeView on overlays for now.
-    @Override
-    public void addView(View child, int index, ViewGroup.LayoutParams params) {
-        if (!mInEditor && mOverlayLayout.isOverlay(params)) {
-            mOverlayLayout.addView(child, params);
-        } else {
-            super.addView(child, index, params);
         }
     }
 
