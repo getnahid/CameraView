@@ -127,18 +127,13 @@ public class CameraView {
     private OrientationHelper mOrientationHelper;
     private CameraEngine mCameraEngine;
     private MediaActionSound mSound;
-    private AutoFocusMarker mAutoFocusMarker;
     @VisibleForTesting List<CameraListener> mListeners = new CopyOnWriteArrayList<>();
     @VisibleForTesting List<FrameProcessor> mFrameProcessors = new CopyOnWriteArrayList<>();
     private Lifecycle mLifecycle;
     private boolean mKeepScreenOn;
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private boolean mExperimental;
-    private boolean mInEditor;
     private SharedPreferences preference;
-
-    // Overlays
-    @VisibleForTesting OverlayLayout mOverlayLayout;
 
     // Threading
     private Handler mUiHandler;
@@ -172,9 +167,6 @@ public class CameraView {
 
     @SuppressWarnings("WrongConstant")
     private void initialize(@NonNull Context context) {
-        //mInEditor = isInEditMode();
-        //if (mInEditor) return;
-
         //setWillNotDraw(false);
         //TypedArray a = context.getTheme().obtainStyledAttributes(attrs, R.styleable.CameraView, 0, 0);
         preference = PreferenceManager.getDefaultSharedPreferences(context);
@@ -200,8 +192,6 @@ public class CameraView {
 
         // Size selectors and gestures
         SizeSelectorParser sizeSelectors = new SizeSelectorParser(preference);
-        //GestureParser gestures = new GestureParser(a);
-        MarkerParser markers = new MarkerParser(preference);
         FilterParser filters = new FilterParser(preference);
 
         //a.recycle();
@@ -217,8 +207,6 @@ public class CameraView {
         // Apply self managed
         setPlaySounds(playSounds);
         setUseDeviceOrientation(useDeviceOrientation);
-        setGrid(controls.getGrid());
-        setGridColor(gridColor);
 
         // Apply camera engine params
         // Adding new ones? See setEngine().
@@ -246,6 +234,10 @@ public class CameraView {
         mOrientationHelper = new OrientationHelper(context, mCameraCallbacks);
     }
 
+    public CameraCallbacks getCameraCallbacks(){
+        return mCameraCallbacks;
+    }
+
     /**
      * Engine is instantiated on creation and anytime
      * {@link #setEngine(Engine)} is called.
@@ -255,23 +247,6 @@ public class CameraView {
         mCameraEngine = instantiateCameraEngine(mEngine, mCameraCallbacks);
         LOG.w("doInstantiateEngine:", "instantiated. engine:", mCameraEngine.getClass().getSimpleName());
         mCameraEngine.setOverlay(mOverlayLayout);
-    }
-
-    /**
-     * Preview is instantiated {@link #onAttachedToWindow()}, because
-     * we want to know if we're hardware accelerated or not.
-     * However, in tests, we might want to create the preview right after constructor.
-     */
-    @VisibleForTesting
-    void doInstantiatePreview(ViewGroup parent) {
-        LOG.w("doInstantiateEngine:", "instantiating. preview:", mPreview);
-        mCameraPreview = instantiatePreview(mPreview, getContext(), parent);
-        LOG.w("doInstantiateEngine:", "instantiated. preview:", mCameraPreview.getClass().getSimpleName());
-        mCameraEngine.setPreview(mCameraPreview);
-        if (mPendingFilter != null) {
-            setFilter(mPendingFilter);
-            mPendingFilter = null;
-        }
     }
 
     private Context getContext(){
@@ -292,32 +267,6 @@ public class CameraView {
         } else {
             mEngine = Engine.CAMERA1;
             return new Camera1Engine(callback);
-        }
-    }
-
-    /**
-     * Instantiates the camera preview.
-     *
-     * @param preview current preview value
-     * @param context a context
-     * @param container the container
-     * @return the preview
-     */
-    @NonNull
-    protected CameraPreview instantiatePreview(@NonNull Preview preview, @NonNull Context context, @NonNull ViewGroup container) {
-        switch (preview) {
-            case SURFACE:
-                return new SurfaceCameraPreview(context, container);
-            case TEXTURE: {
-                if (isHardwareAccelerated()) {
-                    // TextureView is not supported without hardware acceleration.
-                    return new TextureCameraPreview(context, container);
-                }
-            }
-            case GL_SURFACE: default: {
-                mPreview = Preview.GL_SURFACE;
-                return new GlCameraPreview(context, container);
-            }
         }
     }
 
@@ -495,7 +444,7 @@ public class CameraView {
         } else if (control instanceof VideoCodec) {
             setVideoCodec((VideoCodec) control);
         } else if (control instanceof Preview) {
-            setPreview((Preview) control);
+            //setPreview((Preview) control);
         } else if (control instanceof Engine) {
             setEngine((Engine) control);
         }
@@ -529,48 +478,12 @@ public class CameraView {
         } else if (controlClass == VideoCodec.class) {
             return (T) getVideoCodec();
         } else if (controlClass == Preview.class) {
-            return (T) getPreview();
+            return (T) null;//getPreview();
         } else if (controlClass == Engine.class) {
             return (T) getEngine();
         } else {
             throw new IllegalArgumentException("Unknown control class: " + controlClass);
         }
-    }
-
-    /**
-     * Controls the preview engine. Should only be called
-     * if this CameraView was never added to any window
-     * (like if you created it programmatically).
-     * Otherwise, it has no effect.
-     *
-     * @see Preview#SURFACE
-     * @see Preview#TEXTURE
-     * @see Preview#GL_SURFACE
-     *
-     * @param preview desired preview engine
-     */
-    public void setPreview(@NonNull Preview preview) {
-        boolean isNew = preview != mPreview;
-        if (isNew) {
-            mPreview = preview;
-            boolean isAttachedToWindow = getWindowToken() != null;
-            if (!isAttachedToWindow && mCameraPreview != null) {
-                // Null the preview: will create another when re-attaching.
-                mCameraPreview.onDestroy();
-                mCameraPreview = null;
-            }
-        }
-    }
-
-    /**
-     * Returns the current preview control.
-     *
-     * @see #setPreview(Preview)
-     * @return the current preview control
-     */
-    @NonNull
-    public Preview getPreview() {
-        return mPreview;
     }
 
     /**
@@ -686,47 +599,6 @@ public class CameraView {
      */
     public float getZoom() {
         return mCameraEngine.getZoomValue();
-    }
-
-    /**
-     * Controls the grids to be drawn over the current layout.
-     *
-     * @see Grid#OFF
-     * @see Grid#DRAW_3X3
-     * @see Grid#DRAW_4X4
-     * @see Grid#DRAW_PHI
-     *
-     * @param gridMode desired grid mode
-     */
-    public void setGrid(@NonNull Grid gridMode) {
-        mGridLinesLayout.setGridMode(gridMode);
-    }
-
-    /**
-     * Gets the current grid mode.
-     * @return the current grid mode
-     */
-    @NonNull
-    public Grid getGrid() {
-        return mGridLinesLayout.getGridMode();
-    }
-
-    /**
-     * Controls the color of the grid lines that will be drawn
-     * over the current layout.
-     *
-     * @param color a resolved color
-     */
-    public void setGridColor(@ColorInt int color) {
-        mGridLinesLayout.setGridColor(color);
-    }
-
-    /**
-     * Returns the current grid color.
-     * @return the current grid color
-     */
-    public int getGridColor() {
-        return mGridLinesLayout.getGridColor();
     }
 
     /**
@@ -931,18 +803,6 @@ public class CameraView {
     @SuppressWarnings("unused")
     public long getAutoFocusResetDelay() { return mCameraEngine.getAutoFocusResetDelay(); }
 
-    /**
-     * Starts a 3A touch metering process at the given coordinates, with respect
-     * to the view width and height.
-     *
-     * @param x should be between 0 and getWidth()
-     * @param y should be between 0 and getHeight()
-     */
-    public void startAutoFocus(float x, float y) {
-        if (x < 0 || x > getWidth()) throw new IllegalArgumentException("x should be >= 0 and <= getWidth()");
-        if (y < 0 || y > getHeight()) throw new IllegalArgumentException("y should be >= 0 and <= getHeight()");
-        mCameraEngine.startAutoFocus(null, new PointF(x, y));
-    }
 
     /**
      * <strong>ADVANCED FEATURE</strong> - sets a size selector for the preview stream.

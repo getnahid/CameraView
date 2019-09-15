@@ -2,29 +2,40 @@ package com.otaliastudios.cameraview;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.SharedPreferences;
+import android.graphics.PointF;
+import android.preference.PreferenceManager;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
+import androidx.annotation.ColorInt;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.lifecycle.LifecycleObserver;
 
+import com.otaliastudios.cameraview.controls.Grid;
+import com.otaliastudios.cameraview.controls.Preview;
 import com.otaliastudios.cameraview.engine.offset.Reference;
 import com.otaliastudios.cameraview.filter.TwoParameterFilter;
 import com.otaliastudios.cameraview.gesture.Gesture;
 import com.otaliastudios.cameraview.gesture.GestureAction;
+import com.otaliastudios.cameraview.gesture.GestureParser;
 import com.otaliastudios.cameraview.gesture.PinchGestureFinder;
 import com.otaliastudios.cameraview.gesture.ScrollGestureFinder;
 import com.otaliastudios.cameraview.gesture.TapGestureFinder;
 import com.otaliastudios.cameraview.internal.GridLinesLayout;
 import com.otaliastudios.cameraview.markers.AutoFocusMarker;
 import com.otaliastudios.cameraview.markers.MarkerLayout;
+import com.otaliastudios.cameraview.markers.MarkerParser;
 import com.otaliastudios.cameraview.overlay.OverlayLayout;
 import com.otaliastudios.cameraview.preview.CameraPreview;
+import com.otaliastudios.cameraview.preview.GlCameraPreview;
+import com.otaliastudios.cameraview.preview.SurfaceCameraPreview;
+import com.otaliastudios.cameraview.preview.TextureCameraPreview;
 import com.otaliastudios.cameraview.size.Size;
 
 import static android.view.View.MeasureSpec.AT_MOST;
@@ -41,10 +52,18 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
     // Views
     @VisibleForTesting
     GridLinesLayout mGridLinesLayout;
-    //@VisibleForTesting MarkerLayout mMarkerLayout;
-
-    public CameraViewParent(@NonNull Context context) {
+    @VisibleForTesting MarkerLayout mMarkerLayout;
+    // Overlays
+    @VisibleForTesting OverlayLayout mOverlayLayout;
+    private SharedPreferences preference;
+    private AutoFocusMarker mAutoFocusMarker;
+    private CameraView cameraView;
+    private CameraView.CameraCallbacks mCameraCallbacks;
+    private boolean mInEditor;
+    public CameraViewParent(@NonNull Context context, CameraView cameraView) {
         super(context);
+        this.cameraView = cameraView;
+        mCameraCallbacks = cameraView.getCameraCallbacks();
         initialize(context);
     }
 
@@ -53,6 +72,10 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
     }
 
     private void initialize(@NonNull Context context) {
+        mInEditor = isInEditMode();
+        if (mInEditor) return;
+        setWillNotDraw(false);
+        preference = PreferenceManager.getDefaultSharedPreferences(context);
         // Gestures
         mPinchGestureFinder = new PinchGestureFinder(mCameraCallbacks);
         mTapGestureFinder = new TapGestureFinder(mCameraCallbacks);
@@ -67,6 +90,8 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
         addView(mMarkerLayout);
         addView(mOverlayLayout);
 
+        GestureParser gestures = new GestureParser(a);
+
         // Apply gestures
         mapGesture(Gesture.TAP, gestures.getTapAction());
         mapGesture(Gesture.LONG_TAP, gestures.getLongTapAction());
@@ -74,8 +99,12 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
         mapGesture(Gesture.SCROLL_HORIZONTAL, gestures.getHorizontalScrollAction());
         mapGesture(Gesture.SCROLL_VERTICAL, gestures.getVerticalScrollAction());
 
+        MarkerParser markers = new MarkerParser(preference);
         // Apply markers
         setAutoFocusMarker(markers.getAutoFocusMarker());
+
+        setGrid(controls.getGrid());
+        setGridColor(gridColor);
     }
 
     /**
@@ -426,4 +455,137 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
     }
 
     //endregion
+
+    /**
+     * Instantiates the camera preview.
+     *
+     * @param preview current preview value
+     * @param context a context
+     * @param container the container
+     * @return the preview
+     */
+    @NonNull
+    protected CameraPreview instantiatePreview(@NonNull Preview preview, @NonNull Context context, @NonNull ViewGroup container) {
+        switch (preview) {
+            case SURFACE:
+                return new SurfaceCameraPreview(context, container);
+            case TEXTURE: {
+                if (isHardwareAccelerated()) {
+                    // TextureView is not supported without hardware acceleration.
+                    return new TextureCameraPreview(context, container);
+                }
+            }
+            case GL_SURFACE: default: {
+                mPreview = Preview.GL_SURFACE;
+                return new GlCameraPreview(context, container);
+            }
+        }
+    }
+
+    /**
+     * Preview is instantiated {@link #onAttachedToWindow()}, because
+     * we want to know if we're hardware accelerated or not.
+     * However, in tests, we might want to create the preview right after constructor.
+     */
+    @VisibleForTesting
+    void doInstantiatePreview(ViewGroup parent) {
+        LOG.w("doInstantiateEngine:", "instantiating. preview:", mPreview);
+        mCameraPreview = instantiatePreview(mPreview, getContext(), parent);
+        LOG.w("doInstantiateEngine:", "instantiated. preview:", mCameraPreview.getClass().getSimpleName());
+        mCameraEngine.setPreview(mCameraPreview);
+        if (mPendingFilter != null) {
+            setFilter(mPendingFilter);
+            mPendingFilter = null;
+        }
+    }
+
+    /**
+     * Controls the preview engine. Should only be called
+     * if this CameraView was never added to any window
+     * (like if you created it programmatically).
+     * Otherwise, it has no effect.
+     *
+     * @see Preview#SURFACE
+     * @see Preview#TEXTURE
+     * @see Preview#GL_SURFACE
+     *
+     * @param preview desired preview engine
+     */
+    public void setPreview(@NonNull Preview preview) {
+        boolean isNew = preview != mPreview;
+        if (isNew) {
+            mPreview = preview;
+            boolean isAttachedToWindow = getWindowToken() != null;
+            if (!isAttachedToWindow && mCameraPreview != null) {
+                // Null the preview: will create another when re-attaching.
+                mCameraPreview.onDestroy();
+                mCameraPreview = null;
+            }
+        }
+    }
+
+    /**
+     * Returns the current preview control.
+     *
+     * @see #setPreview(Preview)
+     * @return the current preview control
+     */
+    @NonNull
+    public Preview getPreview() {
+        return mPreview;
+    }
+
+    /**
+     * Controls the grids to be drawn over the current layout.
+     *
+     * @see Grid#OFF
+     * @see Grid#DRAW_3X3
+     * @see Grid#DRAW_4X4
+     * @see Grid#DRAW_PHI
+     *
+     * @param gridMode desired grid mode
+     */
+    public void setGrid(@NonNull Grid gridMode) {
+        mGridLinesLayout.setGridMode(gridMode);
+    }
+
+    /**
+     * Gets the current grid mode.
+     * @return the current grid mode
+     */
+    @NonNull
+    public Grid getGrid() {
+        return mGridLinesLayout.getGridMode();
+    }
+
+    /**
+     * Controls the color of the grid lines that will be drawn
+     * over the current layout.
+     *
+     * @param color a resolved color
+     */
+    public void setGridColor(@ColorInt int color) {
+        mGridLinesLayout.setGridColor(color);
+    }
+
+    /**
+     * Returns the current grid color.
+     * @return the current grid color
+     */
+    public int getGridColor() {
+        return mGridLinesLayout.getGridColor();
+    }
+
+    /**
+     * Starts a 3A touch metering process at the given coordinates, with respect
+     * to the view width and height.
+     *
+     * @param x should be between 0 and getWidth()
+     * @param y should be between 0 and getHeight()
+     */
+    public void startAutoFocus(float x, float y) {
+        if (x < 0 || x > getWidth()) throw new IllegalArgumentException("x should be >= 0 and <= getWidth()");
+        if (y < 0 || y > getHeight()) throw new IllegalArgumentException("y should be >= 0 and <= getHeight()");
+        mCameraEngine.startAutoFocus(null, new PointF(x, y));
+    }
 }
