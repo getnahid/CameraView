@@ -123,14 +123,12 @@ public class CameraView {
 
     // Components
     @VisibleForTesting CameraCallbacks mCameraCallbacks;
-    private CameraPreview mCameraPreview;
     private OrientationHelper mOrientationHelper;
     private CameraEngine mCameraEngine;
     private MediaActionSound mSound;
     @VisibleForTesting List<CameraListener> mListeners = new CopyOnWriteArrayList<>();
     @VisibleForTesting List<FrameProcessor> mFrameProcessors = new CopyOnWriteArrayList<>();
-    private Lifecycle mLifecycle;
-    private boolean mKeepScreenOn;
+
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private boolean mExperimental;
     private SharedPreferences preference;
@@ -283,6 +281,24 @@ public class CameraView {
     }
 
     //@Override
+    protected void onAttachedToWindow(ViewGroup parent) {
+        //super.onAttachedToWindow();
+        if (mInEditor) return;
+        if (mCameraPreview == null) {
+            // isHardwareAccelerated will return the real value only after we are
+            // attached. That's why we instantiate the preview here.
+            doInstantiatePreview(parent);
+        }
+        mOrientationHelper.enable(getContext());
+    }
+
+    //@Override
+    protected void onDetachedFromWindow() {
+        if (!mInEditor) mOrientationHelper.disable();
+        //super.onDetachedFromWindow();
+    }
+
+    //@Override
     protected void onDetachedFromWindow() {
         if (!mInEditor) mOrientationHelper.disable();
         //super.onDetachedFromWindow();
@@ -303,18 +319,6 @@ public class CameraView {
 
     private boolean isClosed() {
         return mCameraEngine.getEngineState() == CameraEngine.STATE_STOPPED;
-    }
-
-    /**
-     * Sets the lifecycle owner for this view. This means you don't need
-     * to call {@link #open()}, {@link #close()} or {@link #destroy()} at all.
-     *
-     * @param owner the owner activity or fragment
-     */
-    public void setLifecycleOwner(@NonNull LifecycleOwner owner) {
-        if (mLifecycle != null) mLifecycle.removeObserver(this);
-        mLifecycle = owner.getLifecycle();
-        mLifecycle.addObserver(this);
     }
 
     /**

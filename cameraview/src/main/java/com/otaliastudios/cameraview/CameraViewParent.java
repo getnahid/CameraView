@@ -15,7 +15,9 @@ import androidx.annotation.ColorInt;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
+import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.LifecycleObserver;
+import androidx.lifecycle.LifecycleOwner;
 
 import com.otaliastudios.cameraview.controls.Grid;
 import com.otaliastudios.cameraview.controls.Preview;
@@ -60,6 +62,9 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
     private CameraView cameraView;
     private CameraView.CameraCallbacks mCameraCallbacks;
     private boolean mInEditor;
+    private CameraPreview mCameraPreview;
+    private Lifecycle mLifecycle;
+    private boolean mKeepScreenOn;
     public CameraViewParent(@NonNull Context context, CameraView cameraView) {
         super(context);
         this.cameraView = cameraView;
@@ -587,5 +592,17 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
         if (x < 0 || x > getWidth()) throw new IllegalArgumentException("x should be >= 0 and <= getWidth()");
         if (y < 0 || y > getHeight()) throw new IllegalArgumentException("y should be >= 0 and <= getHeight()");
         mCameraEngine.startAutoFocus(null, new PointF(x, y));
+    }
+
+    /**
+     * Sets the lifecycle owner for this view. This means you don't need
+     * to call {@link #open()}, {@link #close()} or {@link #destroy()} at all.
+     *
+     * @param owner the owner activity or fragment
+     */
+    public void setLifecycleOwner(@NonNull LifecycleOwner owner) {
+        if (mLifecycle != null) mLifecycle.removeObserver(this);
+        mLifecycle = owner.getLifecycle();
+        mLifecycle.addObserver(this);
     }
 }
