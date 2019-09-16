@@ -18,13 +18,17 @@ import androidx.annotation.VisibleForTesting;
 import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.LifecycleObserver;
 import androidx.lifecycle.LifecycleOwner;
+import androidx.lifecycle.OnLifecycleEvent;
 
 import com.otaliastudios.cameraview.controls.Grid;
 import com.otaliastudios.cameraview.controls.Preview;
+import com.otaliastudios.cameraview.engine.CameraEngine;
 import com.otaliastudios.cameraview.engine.offset.Reference;
+import com.otaliastudios.cameraview.filter.OneParameterFilter;
 import com.otaliastudios.cameraview.filter.TwoParameterFilter;
 import com.otaliastudios.cameraview.gesture.Gesture;
 import com.otaliastudios.cameraview.gesture.GestureAction;
+import com.otaliastudios.cameraview.gesture.GestureFinder;
 import com.otaliastudios.cameraview.gesture.GestureParser;
 import com.otaliastudios.cameraview.gesture.PinchGestureFinder;
 import com.otaliastudios.cameraview.gesture.ScrollGestureFinder;
@@ -39,6 +43,8 @@ import com.otaliastudios.cameraview.preview.GlCameraPreview;
 import com.otaliastudios.cameraview.preview.SurfaceCameraPreview;
 import com.otaliastudios.cameraview.preview.TextureCameraPreview;
 import com.otaliastudios.cameraview.size.Size;
+
+import java.util.HashMap;
 
 import static android.view.View.MeasureSpec.AT_MOST;
 import static android.view.View.MeasureSpec.EXACTLY;
@@ -65,9 +71,15 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
     private CameraPreview mCameraPreview;
     private Lifecycle mLifecycle;
     private boolean mKeepScreenOn;
+    private Preview mPreview;
+    private final static String TAG = CameraView.class.getSimpleName();
+    private static final CameraLogger LOG = CameraLogger.create(TAG);
+    private HashMap<Gesture, GestureAction> mGestureMap = new HashMap<>(4);
+    private CameraEngine mCameraEngine;
     public CameraViewParent(@NonNull Context context, CameraView cameraView) {
         super(context);
         this.cameraView = cameraView;
+        mCameraEngine = cameraView.getCameraEngine();
         mCameraCallbacks = cameraView.getCameraCallbacks();
         initialize(context);
     }
@@ -488,23 +500,6 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
     }
 
     /**
-     * Preview is instantiated {@link #onAttachedToWindow()}, because
-     * we want to know if we're hardware accelerated or not.
-     * However, in tests, we might want to create the preview right after constructor.
-     */
-    @VisibleForTesting
-    void doInstantiatePreview(ViewGroup parent) {
-        LOG.w("doInstantiateEngine:", "instantiating. preview:", mPreview);
-        mCameraPreview = instantiatePreview(mPreview, getContext(), parent);
-        LOG.w("doInstantiateEngine:", "instantiated. preview:", mCameraPreview.getClass().getSimpleName());
-        mCameraEngine.setPreview(mCameraPreview);
-        if (mPendingFilter != null) {
-            setFilter(mPendingFilter);
-            mPendingFilter = null;
-        }
-    }
-
-    /**
      * Controls the preview engine. Should only be called
      * if this CameraView was never added to any window
      * (like if you created it programmatically).
@@ -605,4 +600,72 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
         mLifecycle = owner.getLifecycle();
         mLifecycle.addObserver(this);
     }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        //if (mInEditor) return;
+        if (mCameraPreview == null) {
+            // isHardwareAccelerated will return the real value only after we are
+            // attached. That's why we instantiate the preview here.
+            doInstantiatePreview();
+        }
+        //mOrientationHelper.enable(getContext());
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        //if (!mInEditor) mOrientationHelper.disable();
+        super.onDetachedFromWindow();
+    }
+
+    /**
+     * Preview is instantiated {@link #onAttachedToWindow()}, because
+     * we want to know if we're hardware accelerated or not.
+     * However, in tests, we might want to create the preview right after constructor.
+     */
+    @VisibleForTesting
+    void doInstantiatePreview() {
+        LOG.w("doInstantiateEngine:", "instantiating. preview:", mPreview);
+        mCameraPreview = instantiatePreview(mPreview, getContext(), this);
+        LOG.w("doInstantiateEngine:", "instantiated. preview:", mCameraPreview.getClass().getSimpleName());
+        mCameraEngine.setPreview(mCameraPreview);
+        if (mPendingFilter != null) {
+            setFilter(mPendingFilter);
+            mPendingFilter = null;
+        }
+    }
+
+    @OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
+    public void open() {
+        if (mInEditor) return;
+        if (mCameraPreview != null) mCameraPreview.onResume();
+//        if (checkPermissions(getAudio())) {
+//            // Update display orientation for current CameraEngine
+//            mOrientationHelper.enable(getContext());
+//            mCameraEngine.getAngles().setDisplayOffset(mOrientationHelper.getDisplayOffset());
+//            mCameraEngine.start();
+//        }
+    }
+
+    @OnLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+    public void close() {
+        if (mInEditor) return;
+        //mCameraEngine.stop();
+        if (mCameraPreview != null) mCameraPreview.onPause();
+    }
+
+    /**
+     * Destroys this instance, releasing immediately
+     * the camera resource.
+     */
+    @OnLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+    public void destroy() {
+        if (mInEditor) return;
+        //clearCameraListeners();
+        //clearFrameProcessors();
+        //mCameraEngine.destroy();
+        if (mCameraPreview != null) mCameraPreview.onDestroy();
+    }
+
 }

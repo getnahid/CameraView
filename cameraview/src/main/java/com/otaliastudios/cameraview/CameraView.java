@@ -116,8 +116,6 @@ public class CameraView {
     // Self managed parameters
     private boolean mPlaySounds;
     private boolean mUseDeviceOrientation;
-    private HashMap<Gesture, GestureAction> mGestureMap = new HashMap<>(4);
-    private Preview mPreview;
     private Engine mEngine;
     private Filter mPendingFilter;
 
@@ -137,6 +135,7 @@ public class CameraView {
     private Handler mUiHandler;
     private WorkerHandler mFrameProcessorsHandler;
     private Context context;
+    private CameraViewParent cameraViewParent;
 
     public static final String KEY_CAMERA_PLAY_SOUND = "CameraView_cameraPlaySounds";
     public static final String KEY_CAMERA_DEVICE_ORIENTATION = "CameraView_cameraUseDeviceOrientation";
@@ -174,7 +173,7 @@ public class CameraView {
         boolean playSounds = preference.getBoolean(KEY_CAMERA_PLAY_SOUND, DEFAULT_PLAY_SOUNDS);
         boolean useDeviceOrientation = preference.getBoolean(KEY_CAMERA_DEVICE_ORIENTATION, DEFAULT_USE_DEVICE_ORIENTATION);
         mExperimental = preference.getBoolean(KEY_CAMERA_EXPERIMENTAL, false);
-        mPreview = controls.getPreview();
+        //mPreview = controls.getPreview();
         mEngine = controls.getEngine();
 
         // Camera engine params
@@ -232,6 +231,10 @@ public class CameraView {
         mOrientationHelper = new OrientationHelper(context, mCameraCallbacks);
     }
 
+    public CameraEngine getCameraEngine(){
+        return mCameraEngine;
+    }
+
     public CameraCallbacks getCameraCallbacks(){
         return mCameraCallbacks;
     }
@@ -269,38 +272,21 @@ public class CameraView {
     }
 
     //@Override
-    protected void onAttachedToWindow(ViewGroup parent) {
+    protected void onAttachedToWindow() {
         //super.onAttachedToWindow();
-        if (mInEditor) return;
-        if (mCameraPreview == null) {
+        //if (mInEditor) return;
+        //if (mCameraPreview == null) {
             // isHardwareAccelerated will return the real value only after we are
             // attached. That's why we instantiate the preview here.
-            doInstantiatePreview(parent);
-        }
-        mOrientationHelper.enable(getContext());
-    }
-
-    //@Override
-    protected void onAttachedToWindow(ViewGroup parent) {
-        //super.onAttachedToWindow();
-        if (mInEditor) return;
-        if (mCameraPreview == null) {
-            // isHardwareAccelerated will return the real value only after we are
-            // attached. That's why we instantiate the preview here.
-            doInstantiatePreview(parent);
-        }
+           // doInstantiatePreview(parent);
+        //}
         mOrientationHelper.enable(getContext());
     }
 
     //@Override
     protected void onDetachedFromWindow() {
-        if (!mInEditor) mOrientationHelper.disable();
-        //super.onDetachedFromWindow();
-    }
-
-    //@Override
-    protected void onDetachedFromWindow() {
-        if (!mInEditor) mOrientationHelper.disable();
+        //if (!mInEditor)
+        mOrientationHelper.disable();
         //super.onDetachedFromWindow();
     }
 
@@ -325,10 +311,10 @@ public class CameraView {
      * Starts the camera preview, if not started already.
      * This should be called onResume(), or when you are ready with permissions.
      */
-    @OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
+    //@OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
     public void open() {
-        if (mInEditor) return;
-        if (mCameraPreview != null) mCameraPreview.onResume();
+        //if (mInEditor) return;
+        //if (mCameraPreview != null) mCameraPreview.onResume();
         if (checkPermissions(getAudio())) {
             // Update display orientation for current CameraEngine
             mOrientationHelper.enable(getContext());
@@ -391,24 +377,24 @@ public class CameraView {
      * Stops the current preview, if any was started.
      * This should be called onPause().
      */
-    @OnLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+    //@OnLifecycleEvent(Lifecycle.Event.ON_PAUSE)
     public void close() {
-        if (mInEditor) return;
+        //if (mInEditor) return;
         mCameraEngine.stop();
-        if (mCameraPreview != null) mCameraPreview.onPause();
+        //if (mCameraPreview != null) mCameraPreview.onPause();
     }
 
     /**
      * Destroys this instance, releasing immediately
      * the camera resource.
      */
-    @OnLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+    //@OnLifecycleEvent(Lifecycle.Event.ON_DESTROY)
     public void destroy() {
-        if (mInEditor) return;
+        //if (mInEditor) return;
         clearCameraListeners();
         clearFrameProcessors();
         mCameraEngine.destroy();
-        if (mCameraPreview != null) mCameraPreview.onDestroy();
+        //if (mCameraPreview != null) mCameraPreview.onDestroy();
     }
 
     //endregion
@@ -438,7 +424,7 @@ public class CameraView {
         } else if (control instanceof Flash) {
             setFlash((Flash) control);
         } else if (control instanceof Grid) {
-            setGrid((Grid) control);
+            //setGrid((Grid) control);
         } else if (control instanceof Hdr) {
             setHdr((Hdr) control);
         } else if (control instanceof Mode) {
@@ -472,7 +458,7 @@ public class CameraView {
         } else if (controlClass == Flash.class) {
             return (T) getFlash();
         } else if (controlClass == Grid.class) {
-            return (T) getGrid();
+            return null;//(T) getGrid();
         } else if (controlClass == Hdr.class) {
             return (T) getHdr();
         } else if (controlClass == Mode.class) {
@@ -505,7 +491,7 @@ public class CameraView {
         mEngine = engine;
         CameraEngine oldEngine = mCameraEngine;
         doInstantiateEngine();
-        if (mCameraPreview != null) mCameraEngine.setPreview(mCameraPreview);
+        //if (mCameraPreview != null) mCameraEngine.setPreview(mCameraPreview);
 
         // Set again all parameters
         setFacing(oldEngine.getFacing());
@@ -1075,13 +1061,13 @@ public class CameraView {
     public void takeVideo(@NonNull File file) {
         VideoResult.Stub stub = new VideoResult.Stub();
         mCameraEngine.takeVideo(stub, file);
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                mKeepScreenOn = getKeepScreenOn();
-                if (!mKeepScreenOn) setKeepScreenOn(true);
-            }
-        });
+//        mUiHandler.post(new Runnable() {
+//            @Override
+//            public void run() {
+//                mKeepScreenOn = getKeepScreenOn();
+//                if (!mKeepScreenOn) setKeepScreenOn(true);
+//            }
+//        });
     }
 
     /**
@@ -1096,13 +1082,13 @@ public class CameraView {
     public void takeVideoSnapshot(@NonNull File file) {
         VideoResult.Stub stub = new VideoResult.Stub();
         mCameraEngine.takeVideoSnapshot(stub, file);
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                mKeepScreenOn = getKeepScreenOn();
-                if (!mKeepScreenOn) setKeepScreenOn(true);
-            }
-        });
+//        mUiHandler.post(new Runnable() {
+//            @Override
+//            public void run() {
+//                mKeepScreenOn = getKeepScreenOn();
+//                if (!mKeepScreenOn) setKeepScreenOn(true);
+//            }
+//        });
     }
 
     /**
@@ -1180,12 +1166,12 @@ public class CameraView {
      */
     public void stopVideo() {
         mCameraEngine.stopVideo();
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (getKeepScreenOn() != mKeepScreenOn) setKeepScreenOn(mKeepScreenOn);
-            }
-        });
+//        mUiHandler.post(new Runnable() {
+//            @Override
+//            public void run() {
+//                if (getKeepScreenOn() != mKeepScreenOn) setKeepScreenOn(mKeepScreenOn);
+//            }
+//        });
     }
 
     /**
@@ -1225,20 +1211,21 @@ public class CameraView {
      */
     @Nullable
     public Size getSnapshotSize() {
-        if (getWidth() == 0 || getHeight() == 0) return null;
-
-        // Get the preview size and crop according to the current view size.
-        // It's better to do calculations in the REF_VIEW reference, and then flip if needed.
-        Size preview = mCameraEngine.getUncroppedSnapshotSize(Reference.VIEW);
-        if (preview == null) return null; // Should never happen.
-        AspectRatio viewRatio = AspectRatio.of(getWidth(), getHeight());
-        Rect crop = CropHelper.computeCrop(preview, viewRatio);
-        Size cropSize = new Size(crop.width(), crop.height());
-        if (mCameraEngine.getAngles().flip(Reference.VIEW, Reference.OUTPUT)) {
-            return cropSize.flip();
-        } else {
-            return cropSize;
-        }
+//        if (getWidth() == 0 || getHeight() == 0) return null;
+//
+//        // Get the preview size and crop according to the current view size.
+//        // It's better to do calculations in the REF_VIEW reference, and then flip if needed.
+//        Size preview = mCameraEngine.getUncroppedSnapshotSize(Reference.VIEW);
+//        if (preview == null) return null; // Should never happen.
+//        AspectRatio viewRatio = AspectRatio.of(getWidth(), getHeight());
+//        Rect crop = CropHelper.computeCrop(preview, viewRatio);
+//        Size cropSize = new Size(crop.width(), crop.height());
+//        if (mCameraEngine.getAngles().flip(Reference.VIEW, Reference.OUTPUT)) {
+//            return cropSize.flip();
+//        } else {
+//            return cropSize;
+//        }
+        return null;
     }
 
     /**
@@ -1446,12 +1433,12 @@ public class CameraView {
 
         @Override
         public int getWidth() {
-            return CameraView.this.getWidth();
+            return cameraViewParent.getWidth();
         }
 
         @Override
         public int getHeight() {
-            return CameraView.this.getHeight();
+            return cameraViewParent.getHeight();
         }
 
         @Override
@@ -1490,7 +1477,7 @@ public class CameraView {
             mUiHandler.post(new Runnable() {
                 @Override
                 public void run() {
-                    requestLayout();
+                    //requestLayout();
                 }
             });
         }
@@ -1536,12 +1523,12 @@ public class CameraView {
             mUiHandler.post(new Runnable() {
                 @Override
                 public void run() {
-                    mMarkerLayout.onEvent(MarkerLayout.TYPE_AUTOFOCUS, new PointF[]{ point });
-                    if (mAutoFocusMarker != null) {
-                        AutoFocusTrigger trigger = gesture != null ?
-                                AutoFocusTrigger.GESTURE : AutoFocusTrigger.METHOD;
-                        mAutoFocusMarker.onAutoFocusStart(trigger, point);
-                    }
+//                    mMarkerLayout.onEvent(MarkerLayout.TYPE_AUTOFOCUS, new PointF[]{ point });
+//                    if (mAutoFocusMarker != null) {
+//                        AutoFocusTrigger trigger = gesture != null ?
+//                                AutoFocusTrigger.GESTURE : AutoFocusTrigger.METHOD;
+//                        mAutoFocusMarker.onAutoFocusStart(trigger, point);
+//                    }
 
                     for (CameraListener listener : mListeners) {
                         listener.onAutoFocusStart(point);
@@ -1560,12 +1547,12 @@ public class CameraView {
                     if (success && mPlaySounds) {
                         playSound(MediaActionSound.FOCUS_COMPLETE);
                     }
-
-                    if (mAutoFocusMarker != null) {
-                        AutoFocusTrigger trigger = gesture != null ?
-                                AutoFocusTrigger.GESTURE : AutoFocusTrigger.METHOD;
-                        mAutoFocusMarker.onAutoFocusEnd(trigger, success, point);
-                    }
+//
+//                    if (mAutoFocusMarker != null) {
+//                        AutoFocusTrigger trigger = gesture != null ?
+//                                AutoFocusTrigger.GESTURE : AutoFocusTrigger.METHOD;
+//                        mAutoFocusMarker.onAutoFocusEnd(trigger, success, point);
+//                    }
 
                     for (CameraListener listener : mListeners) {
                         listener.onAutoFocusEnd(success, point);
@@ -1714,15 +1701,15 @@ public class CameraView {
      * @param filter a new filter
      */
     public void setFilter(@NonNull Filter filter) {
-        if (mCameraPreview == null) {
-            mPendingFilter = filter;
-        } else if (!(filter instanceof NoFilter) && !mExperimental) {
-            throw new RuntimeException("Filters are an experimental features and need the experimental flag set.");
-        } else if (mCameraPreview instanceof FilterCameraPreview) {
-            ((FilterCameraPreview) mCameraPreview).setFilter(filter);
-        } else {
-            throw new RuntimeException("Filters are only supported by the GL_SURFACE preview. Current:" + mPreview);
-        }
+//        if (mCameraPreview == null) {
+//            mPendingFilter = filter;
+//        } else if (!(filter instanceof NoFilter) && !mExperimental) {
+//            throw new RuntimeException("Filters are an experimental features and need the experimental flag set.");
+//        } else if (mCameraPreview instanceof FilterCameraPreview) {
+//            ((FilterCameraPreview) mCameraPreview).setFilter(filter);
+//        } else {
+//            throw new RuntimeException("Filters are only supported by the GL_SURFACE preview. Current:" + mPreview);
+//        }
     }
 
     /**
@@ -1736,15 +1723,17 @@ public class CameraView {
      */
     @NonNull
     public Filter getFilter() {
-        if (!mExperimental) {
-            throw new RuntimeException("Filters are an experimental features and need the experimental flag set.");
-        } else if (mCameraPreview == null) {
-            return mPendingFilter;
-        } else if (mCameraPreview instanceof FilterCameraPreview) {
-            return ((FilterCameraPreview) mCameraPreview).getCurrentFilter();
-        } else {
-            throw new RuntimeException("Filters are only supported by the GL_SURFACE preview. Current:" + mPreview);
-        }
+//        if (!mExperimental) {
+//            throw new RuntimeException("Filters are an experimental features and need the experimental flag set.");
+//        } else if (mCameraPreview == null) {
+//            return mPendingFilter;
+//        } else if (mCameraPreview instanceof FilterCameraPreview) {
+//            return ((FilterCameraPreview) mCameraPreview).getCurrentFilter();
+//        } else {
+//            throw new RuntimeException("Filters are only supported by the GL_SURFACE preview. Current:" + mPreview);
+//        }
+
+        return null;
 
     }
 
