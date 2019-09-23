@@ -9,29 +9,17 @@ import android.content.ContextWrapper;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
-import android.content.res.TypedArray;
 import android.graphics.PointF;
-import android.graphics.Rect;
 import android.location.Location;
 import android.media.MediaActionSound;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.preference.PreferenceManager;
-import android.util.AttributeSet;
-import android.view.MotionEvent;
-import android.view.View;
-import android.view.ViewGroup;
-import android.widget.FrameLayout;
 
-import androidx.annotation.ColorInt;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
-import androidx.lifecycle.Lifecycle;
-import androidx.lifecycle.LifecycleObserver;
-import androidx.lifecycle.LifecycleOwner;
-import androidx.lifecycle.OnLifecycleEvent;
 
 import com.otaliastudios.cameraview.controls.Audio;
 import com.otaliastudios.cameraview.controls.Control;
@@ -53,32 +41,14 @@ import com.otaliastudios.cameraview.filter.Filter;
 import com.otaliastudios.cameraview.filter.FilterParser;
 import com.otaliastudios.cameraview.filter.Filters;
 import com.otaliastudios.cameraview.filter.NoFilter;
-import com.otaliastudios.cameraview.filter.OneParameterFilter;
-import com.otaliastudios.cameraview.filter.TwoParameterFilter;
 import com.otaliastudios.cameraview.frame.Frame;
 import com.otaliastudios.cameraview.frame.FrameProcessor;
 import com.otaliastudios.cameraview.gesture.Gesture;
-import com.otaliastudios.cameraview.gesture.GestureAction;
 import com.otaliastudios.cameraview.gesture.GestureFinder;
-import com.otaliastudios.cameraview.gesture.GestureParser;
-import com.otaliastudios.cameraview.gesture.PinchGestureFinder;
-import com.otaliastudios.cameraview.gesture.ScrollGestureFinder;
-import com.otaliastudios.cameraview.gesture.TapGestureFinder;
 import com.otaliastudios.cameraview.internal.GridLinesLayout;
-import com.otaliastudios.cameraview.internal.utils.CropHelper;
 import com.otaliastudios.cameraview.internal.utils.OrientationHelper;
 import com.otaliastudios.cameraview.internal.utils.WorkerHandler;
-import com.otaliastudios.cameraview.markers.AutoFocusMarker;
-import com.otaliastudios.cameraview.markers.AutoFocusTrigger;
-import com.otaliastudios.cameraview.markers.MarkerLayout;
-import com.otaliastudios.cameraview.markers.MarkerParser;
 import com.otaliastudios.cameraview.overlay.OverlayLayout;
-import com.otaliastudios.cameraview.preview.CameraPreview;
-import com.otaliastudios.cameraview.preview.FilterCameraPreview;
-import com.otaliastudios.cameraview.preview.GlCameraPreview;
-import com.otaliastudios.cameraview.preview.SurfaceCameraPreview;
-import com.otaliastudios.cameraview.preview.TextureCameraPreview;
-import com.otaliastudios.cameraview.size.AspectRatio;
 import com.otaliastudios.cameraview.size.Size;
 import com.otaliastudios.cameraview.size.SizeSelector;
 import com.otaliastudios.cameraview.size.SizeSelectorParser;
@@ -86,14 +56,8 @@ import com.otaliastudios.cameraview.size.SizeSelectors;
 
 import java.io.File;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-
-import static android.view.View.MeasureSpec.AT_MOST;
-import static android.view.View.MeasureSpec.EXACTLY;
-import static android.view.View.MeasureSpec.UNSPECIFIED;
-import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 
 /**
  * Entry point for the whole library.
@@ -136,6 +100,7 @@ public class CameraView {
     private WorkerHandler mFrameProcessorsHandler;
     private Context context;
     private CameraViewParent cameraViewParent;
+    @VisibleForTesting OverlayLayout mOverlayLayout;
 
     public static final String KEY_CAMERA_PLAY_SOUND = "CameraView_cameraPlaySounds";
     public static final String KEY_CAMERA_DEVICE_ORIENTATION = "CameraView_cameraUseDeviceOrientation";
