@@ -1,10 +1,6 @@
 package com.otaliastudios.cameraview.gesture;
 
-import android.content.res.TypedArray;
-
-import com.otaliastudios.cameraview.R;
-
-import androidx.annotation.NonNull;
+import android.content.SharedPreferences;
 
 /**
  * Parses gestures from XML attributes.
@@ -17,12 +13,18 @@ public class GestureParser {
     private int horizontalScrollAction;
     private int verticalScrollAction;
 
-    public GestureParser(@NonNull TypedArray array) {
-        this.tapAction = array.getInteger(R.styleable.CameraView_cameraGestureTap, GestureAction.DEFAULT_TAP.value());
-        this.longTapAction = array.getInteger(R.styleable.CameraView_cameraGestureLongTap, GestureAction.DEFAULT_LONG_TAP.value());
-        this.pinchAction = array.getInteger(R.styleable.CameraView_cameraGesturePinch, GestureAction.DEFAULT_PINCH.value());
-        this.horizontalScrollAction = array.getInteger(R.styleable.CameraView_cameraGestureScrollHorizontal, GestureAction.DEFAULT_SCROLL_HORIZONTAL.value());
-        this.verticalScrollAction = array.getInteger(R.styleable.CameraView_cameraGestureScrollVertical, GestureAction.DEFAULT_SCROLL_VERTICAL.value());
+    public static final String KEY_CAMERA_GESTURE_TAP = "CameraView_cameraGestureTap";
+    public static final String KEY_CAMERA_GESTURE_LONG_TAP = "CameraView_cameraGestureLongTap";
+    public static final String KEY_CAMERA_GESTURE_PINCH = "CameraView_cameraGesturePinch";
+    public static final String KEY_CAMERA_GESTURE_SCROLL_HORIZONTAL = "CameraView_cameraGestureScrollHorizontal";
+    public static final String KEY_CAMERA_GESTURE_SCROLL_VERTICAL = "CameraView_cameraGestureScrollVertical";
+
+    public GestureParser(SharedPreferences preference) {
+        this.tapAction = preference.getInt(KEY_CAMERA_GESTURE_TAP, GestureAction.DEFAULT_TAP.value());
+        this.longTapAction = preference.getInt(KEY_CAMERA_GESTURE_LONG_TAP, GestureAction.DEFAULT_LONG_TAP.value());
+        this.pinchAction = preference.getInt(KEY_CAMERA_GESTURE_PINCH, GestureAction.DEFAULT_PINCH.value());
+        this.horizontalScrollAction = preference.getInt(KEY_CAMERA_GESTURE_SCROLL_HORIZONTAL, GestureAction.DEFAULT_SCROLL_HORIZONTAL.value());
+        this.verticalScrollAction = preference.getInt(KEY_CAMERA_GESTURE_SCROLL_VERTICAL, GestureAction.DEFAULT_SCROLL_VERTICAL.value());
     }
 
     private GestureAction get(int which) {

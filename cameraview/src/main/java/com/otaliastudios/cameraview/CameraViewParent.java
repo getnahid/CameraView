@@ -24,6 +24,9 @@ import com.otaliastudios.cameraview.controls.Grid;
 import com.otaliastudios.cameraview.controls.Preview;
 import com.otaliastudios.cameraview.engine.CameraEngine;
 import com.otaliastudios.cameraview.engine.offset.Reference;
+import com.otaliastudios.cameraview.filter.Filter;
+import com.otaliastudios.cameraview.filter.Filters;
+import com.otaliastudios.cameraview.filter.NoFilter;
 import com.otaliastudios.cameraview.filter.OneParameterFilter;
 import com.otaliastudios.cameraview.filter.TwoParameterFilter;
 import com.otaliastudios.cameraview.gesture.Gesture;
@@ -39,11 +42,13 @@ import com.otaliastudios.cameraview.markers.MarkerLayout;
 import com.otaliastudios.cameraview.markers.MarkerParser;
 import com.otaliastudios.cameraview.overlay.OverlayLayout;
 import com.otaliastudios.cameraview.preview.CameraPreview;
+import com.otaliastudios.cameraview.preview.FilterCameraPreview;
 import com.otaliastudios.cameraview.preview.GlCameraPreview;
 import com.otaliastudios.cameraview.preview.SurfaceCameraPreview;
 import com.otaliastudios.cameraview.preview.TextureCameraPreview;
 import com.otaliastudios.cameraview.size.Size;
 
+import java.io.File;
 import java.util.HashMap;
 
 import static android.view.View.MeasureSpec.AT_MOST;
@@ -76,6 +81,8 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
     private static final CameraLogger LOG = CameraLogger.create(TAG);
     private HashMap<Gesture, GestureAction> mGestureMap = new HashMap<>(4);
     private CameraEngine mCameraEngine;
+    private Filter mPendingFilter;
+    private boolean mExperimental;
     public CameraViewParent(@NonNull Context context, CameraView cameraView) {
         super(context);
         this.cameraView = cameraView;
@@ -107,7 +114,7 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
         addView(mMarkerLayout);
         addView(mOverlayLayout);
 
-        GestureParser gestures = new GestureParser(a);
+        GestureParser gestures = new GestureParser(preference);
 
         // Apply gestures
         mapGesture(Gesture.TAP, gestures.getTapAction());
@@ -120,8 +127,8 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
         // Apply markers
         setAutoFocusMarker(markers.getAutoFocusMarker());
 
-        setGrid(controls.getGrid());
-        setGridColor(gridColor);
+        //setGrid(controls.getGrid());
+        //setGridColor(gridColor);
     }
 
     /**
@@ -366,7 +373,7 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
     @SuppressLint("ClickableViewAccessibility")
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if (!isOpened()) return true;
+        if (!cameraView.isOpened()) return true;
 
         // Pass to our own GestureLayouts
         CameraOptions options = mCameraEngine.getCameraOptions(); // Non null
@@ -397,7 +404,7 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
         switch (action) {
 
             case TAKE_PICTURE:
-                takePicture();
+                //takePicture();
                 break;
 
             case AUTO_FOCUS:
@@ -667,5 +674,61 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
         //mCameraEngine.destroy();
         if (mCameraPreview != null) mCameraPreview.onDestroy();
     }
+
+    //region Filters
+
+    /**
+     * Applies a real-time filter to the camera preview, if it supports it.
+     * The only preview type that does so is currently {@link Preview#GL_SURFACE}.
+     *
+     * The filter will be applied to any picture snapshot taken with
+     * {@link #takePictureSnapshot()} and any video snapshot taken with
+     * {@link #takeVideoSnapshot(File)}.
+     *
+     * Use {@link NoFilter} to clear the existing filter,
+     * and take a look at the {@link Filters} class for commonly used filters.
+     *
+     * This method will throw an exception if the current preview does not support real-time filters.
+     * Make sure you use {@link Preview#GL_SURFACE} (the default).
+     *
+     * @see Filters
+     * @param filter a new filter
+     */
+    public void setFilter(@NonNull Filter filter) {
+        if (mCameraPreview == null) {
+            mPendingFilter = filter;
+        } else if (!(filter instanceof NoFilter) && !mExperimental) {
+            throw new RuntimeException("Filters are an experimental features and need the experimental flag set.");
+        } else if (mCameraPreview instanceof FilterCameraPreview) {
+            ((FilterCameraPreview) mCameraPreview).setFilter(filter);
+        } else {
+            throw new RuntimeException("Filters are only supported by the GL_SURFACE preview. Current:" + mPreview);
+        }
+    }
+
+    /**
+     * Returns the current real-time filter applied to the camera preview.
+     *
+     * This method will throw an exception if the current preview does not support real-time filters.
+     * Make sure you use {@link Preview#GL_SURFACE} (the default).
+     *
+     * @see #setFilter(Filter)
+     * @return the current filter
+     */
+    @NonNull
+    public Filter getFilter() {
+        if (!mExperimental) {
+            throw new RuntimeException("Filters are an experimental features and need the experimental flag set.");
+        } else if (mCameraPreview == null) {
+            return mPendingFilter;
+        } else if (mCameraPreview instanceof FilterCameraPreview) {
+            return ((FilterCameraPreview) mCameraPreview).getCurrentFilter();
+        } else {
+            throw new RuntimeException("Filters are only supported by the GL_SURFACE preview. Current:" + mPreview);
+        }
+
+    }
+
+    //endregion
 
 }

@@ -37,10 +37,7 @@ import com.otaliastudios.cameraview.engine.Camera1Engine;
 import com.otaliastudios.cameraview.engine.Camera2Engine;
 import com.otaliastudios.cameraview.engine.CameraEngine;
 import com.otaliastudios.cameraview.engine.offset.Reference;
-import com.otaliastudios.cameraview.filter.Filter;
 import com.otaliastudios.cameraview.filter.FilterParser;
-import com.otaliastudios.cameraview.filter.Filters;
-import com.otaliastudios.cameraview.filter.NoFilter;
 import com.otaliastudios.cameraview.frame.Frame;
 import com.otaliastudios.cameraview.frame.FrameProcessor;
 import com.otaliastudios.cameraview.gesture.Gesture;
@@ -81,7 +78,6 @@ public class CameraView {
     private boolean mPlaySounds;
     private boolean mUseDeviceOrientation;
     private Engine mEngine;
-    private Filter mPendingFilter;
 
     // Components
     @VisibleForTesting CameraCallbacks mCameraCallbacks;
@@ -190,7 +186,7 @@ public class CameraView {
         setAutoFocusResetDelay(autoFocusResetDelay);
 
         // Apply filters
-        setFilter(filters.getFilter());
+        //setFilter(filters.getFilter());
 
         // Create the orientation helper
         mOrientationHelper = new OrientationHelper(context, mCameraCallbacks);
@@ -1646,61 +1642,5 @@ public class CameraView {
 
     //endregion
 
-    //region Filters
 
-    /**
-     * Applies a real-time filter to the camera preview, if it supports it.
-     * The only preview type that does so is currently {@link Preview#GL_SURFACE}.
-     *
-     * The filter will be applied to any picture snapshot taken with
-     * {@link #takePictureSnapshot()} and any video snapshot taken with
-     * {@link #takeVideoSnapshot(File)}.
-     *
-     * Use {@link NoFilter} to clear the existing filter,
-     * and take a look at the {@link Filters} class for commonly used filters.
-     *
-     * This method will throw an exception if the current preview does not support real-time filters.
-     * Make sure you use {@link Preview#GL_SURFACE} (the default).
-     *
-     * @see Filters
-     * @param filter a new filter
-     */
-    public void setFilter(@NonNull Filter filter) {
-//        if (mCameraPreview == null) {
-//            mPendingFilter = filter;
-//        } else if (!(filter instanceof NoFilter) && !mExperimental) {
-//            throw new RuntimeException("Filters are an experimental features and need the experimental flag set.");
-//        } else if (mCameraPreview instanceof FilterCameraPreview) {
-//            ((FilterCameraPreview) mCameraPreview).setFilter(filter);
-//        } else {
-//            throw new RuntimeException("Filters are only supported by the GL_SURFACE preview. Current:" + mPreview);
-//        }
-    }
-
-    /**
-     * Returns the current real-time filter applied to the camera preview.
-     *
-     * This method will throw an exception if the current preview does not support real-time filters.
-     * Make sure you use {@link Preview#GL_SURFACE} (the default).
-     *
-     * @see #setFilter(Filter)
-     * @return the current filter
-     */
-    @NonNull
-    public Filter getFilter() {
-//        if (!mExperimental) {
-//            throw new RuntimeException("Filters are an experimental features and need the experimental flag set.");
-//        } else if (mCameraPreview == null) {
-//            return mPendingFilter;
-//        } else if (mCameraPreview instanceof FilterCameraPreview) {
-//            return ((FilterCameraPreview) mCameraPreview).getCurrentFilter();
-//        } else {
-//            throw new RuntimeException("Filters are only supported by the GL_SURFACE preview. Current:" + mPreview);
-//        }
-
-        return null;
-
-    }
-
-    //endregion
 }
