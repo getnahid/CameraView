@@ -6,13 +6,17 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
+import android.graphics.PixelFormat;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
+import android.view.WindowManager;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -57,7 +61,7 @@ public class CameraActivity extends AppCompatActivity implements View.OnClickLis
 
         controlPanel = findViewById(R.id.controls);
         ViewGroup group = (ViewGroup) controlPanel.getChildAt(0);
-        final View watermark = findViewById(R.id.watermark);
+        //final View watermark = findViewById(R.id.watermark);
 
         List<Option<?>> options = Arrays.asList(
                 // Layout
@@ -73,9 +77,9 @@ public class CameraActivity extends AppCompatActivity implements View.OnClickLis
                 new Option.Pinch(), new Option.HorizontalScroll(), new Option.VerticalScroll(),
                 new Option.Tap(), new Option.LongTap(),
                 // Watermarks
-                new Option.OverlayInPreview(watermark),
-                new Option.OverlayInPictureSnapshot(watermark),
-                new Option.OverlayInVideoSnapshot(watermark),
+//                new Option.OverlayInPreview(watermark),
+//                new Option.OverlayInPictureSnapshot(watermark),
+//                new Option.OverlayInVideoSnapshot(watermark),
                 // Other
                 new Option.Grid(), new Option.GridColor(), new Option.UseDeviceOrientation()
         );
@@ -115,16 +119,48 @@ public class CameraActivity extends AppCompatActivity implements View.OnClickLis
             @Override
             public void onAnimationUpdate(ValueAnimator animation) {
                 float scale = (float) animation.getAnimatedValue();
-                watermark.setScaleX(scale);
-                watermark.setScaleY(scale);
-                watermark.setRotation(watermark.getRotation() + 2);
+//                watermark.setScaleX(scale);
+//                watermark.setScaleY(scale);
+//                watermark.setRotation(watermark.getRotation() + 2);
             }
         });
         animator.start();
 
-        startKeyPressService();
-        doBindService();
 
+
+        if(!canDrawOverlays(this)){
+            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getPackageName()));
+            startActivityForResult(intent, 100);
+        }else{
+            startKeyPressService();
+            doBindService();
+        }
+    }
+
+    public boolean canDrawOverlays(Context context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true;
+//        else if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+//            return Settings.canDrawOverlays(context);
+//        }
+        else {
+            if (Settings.canDrawOverlays(context)) return true;
+            try {
+                WindowManager mgr = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+                if (mgr == null) return false; //getSystemService might return null
+                View viewToAdd = new View(context);
+                WindowManager.LayoutParams params = new WindowManager.LayoutParams(0, 0, android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O ?
+                        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : WindowManager.LayoutParams.TYPE_SYSTEM_ALERT,
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSPARENT);
+                viewToAdd.setLayoutParams(params);
+                mgr.addView(viewToAdd, params);
+                mgr.removeView(viewToAdd);
+                return true;
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            return false;
+        }
     }
 
     public void startKeyPressService() {

@@ -1,11 +1,11 @@
 package com.otaliastudios.cameraview.demo;
 
 import android.graphics.Color;
-import androidx.annotation.NonNull;
-import androidx.core.util.Pair;
-
 import android.view.View;
 import android.view.ViewGroup;
+
+import androidx.annotation.NonNull;
+import androidx.core.util.Pair;
 
 import com.otaliastudios.cameraview.CameraListener;
 import com.otaliastudios.cameraview.CameraOptions;
@@ -59,29 +59,31 @@ public abstract class Option<T> {
         @NonNull
         @Override
         public Collection<Integer> getAll(@NonNull CameraView view, @NonNull CameraOptions options) {
-            View root = (View) view.getParent();
-            ArrayList<Integer> list = new ArrayList<>();
-            int boundary = root.getWidth();
-            if (boundary == 0) boundary = 1000;
-            int step = boundary / 10;
-            list.add(ViewGroup.LayoutParams.WRAP_CONTENT);
-            list.add(ViewGroup.LayoutParams.MATCH_PARENT);
-            for (int i = step; i < boundary; i += step) {
-                list.add(i);
-            }
-            return list;
+//            View root = (View) view.getParent();
+//            ArrayList<Integer> list = new ArrayList<>();
+//            int boundary = root.getWidth();
+//            if (boundary == 0) boundary = 1000;
+//            int step = boundary / 10;
+//            list.add(ViewGroup.LayoutParams.WRAP_CONTENT);
+//            list.add(ViewGroup.LayoutParams.MATCH_PARENT);
+//            for (int i = step; i < boundary; i += step) {
+//                list.add(i);
+//            }
+//            return list;
+            return null;
         }
 
         @NonNull
         @Override
         public Integer get(@NonNull CameraView view) {
-            return view.getLayoutParams().width;
+            //return view.getLayoutParams().width;
+            return null;
         }
 
         @Override
         public void set(@NonNull CameraView view, @NonNull Integer value) {
-            view.getLayoutParams().width = (int) value;
-            view.setLayoutParams(view.getLayoutParams());
+//            view.getLayoutParams().width = (int) value;
+//            view.setLayoutParams(view.getLayoutParams());
         }
 
         @NonNull
@@ -101,29 +103,31 @@ public abstract class Option<T> {
         @NonNull
         @Override
         public Collection<Integer> getAll(@NonNull CameraView view, @NonNull CameraOptions options) {
-            View root = (View) view.getParent();
-            ArrayList<Integer> list = new ArrayList<>();
-            int boundary = root.getHeight();
-            if (boundary == 0) boundary = 1000;
-            int step = boundary / 10;
-            list.add(ViewGroup.LayoutParams.WRAP_CONTENT);
-            list.add(ViewGroup.LayoutParams.MATCH_PARENT);
-            for (int i = step; i < boundary; i += step) {
-                list.add(i);
-            }
-            return list;
+//            View root = (View) view.getParent();
+//            ArrayList<Integer> list = new ArrayList<>();
+//            int boundary = root.getHeight();
+//            if (boundary == 0) boundary = 1000;
+//            int step = boundary / 10;
+//            list.add(ViewGroup.LayoutParams.WRAP_CONTENT);
+//            list.add(ViewGroup.LayoutParams.MATCH_PARENT);
+//            for (int i = step; i < boundary; i += step) {
+//                list.add(i);
+//            }
+//            return list;
+            return null;
         }
 
         @NonNull
         @Override
         public Integer get(@NonNull CameraView view) {
-            return view.getLayoutParams().height;
+            //return view.getLayoutParams().height;
+            return null;
         }
 
         @Override
         public void set(@NonNull CameraView view, @NonNull Integer value) {
-            view.getLayoutParams().height = (int) value;
-            view.setLayoutParams(view.getLayoutParams());
+//            view.getLayoutParams().height = (int) value;
+//            view.setLayoutParams(view.getLayoutParams());
         }
 
         @NonNull
@@ -219,18 +223,18 @@ public abstract class Option<T> {
         // This is really tricky since the preview can only be changed when not attached to window.
         private void applyPreview(@NonNull CameraView cameraView,
                                   @NonNull com.otaliastudios.cameraview.controls.Preview newPreview) {
-            ViewGroup.LayoutParams params = cameraView.getLayoutParams();
-            ViewGroup parent = (ViewGroup) cameraView.getParent();
-            int index = 0;
-            for (int i = 0; i < parent.getChildCount(); i++) {
-                if (parent.getChildAt(i) == cameraView) {
-                    index = i;
-                    break;
-                }
-            }
-            parent.removeView(cameraView);
-            cameraView.setPreview(newPreview);
-            parent.addView(cameraView, index, params);
+//            ViewGroup.LayoutParams params = cameraView.getLayoutParams();
+//            ViewGroup parent = (ViewGroup) cameraView.getParent();
+//            int index = 0;
+//            for (int i = 0; i < parent.getChildCount(); i++) {
+//                if (parent.getChildAt(i) == cameraView) {
+//                    index = i;
+//                    break;
+//                }
+//            }
+//            parent.removeView(cameraView);
+//            cameraView.setPreview(newPreview);
+//            parent.addView(cameraView, index, params);
         }
     }
 
@@ -323,13 +327,14 @@ public abstract class Option<T> {
 
         @Override
         public void set(@NonNull CameraView view, @NonNull GestureAction value) {
-            view.mapGesture(gesture, value);
+           // view.mapGesture(gesture, value);
         }
 
         @NonNull
         @Override
         public GestureAction get(@NonNull CameraView view) {
-            return view.getGestureAction(gesture);
+            //return view.getGestureAction(gesture);
+            return null;
         }
 
         @NonNull
@@ -463,9 +468,9 @@ public abstract class Option<T> {
         public Pair<Integer, String> get(@NonNull CameraView view) {
             for (Pair<Integer, String> pair : ALL) {
                 //noinspection ConstantConditions
-                if (pair.first == view.getGridColor()) {
-                    return pair;
-                }
+//                if (pair.first == view.getGridColor()) {
+//                    return pair;
+//                }
             }
             throw new RuntimeException("Could not find grid color");
         }
@@ -473,7 +478,7 @@ public abstract class Option<T> {
         @Override
         public void set(@NonNull CameraView view, @NonNull Pair<Integer, String> value) {
             //noinspection ConstantConditions
-            view.setGridColor(value.first);
+            //view.setGridColor(value.first);
         }
 
         @NonNull
