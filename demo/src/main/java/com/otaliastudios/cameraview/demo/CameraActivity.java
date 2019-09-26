@@ -1,5 +1,6 @@
 package com.otaliastudios.cameraview.demo;
 
+import android.Manifest;
 import android.animation.ValueAnimator;
 import android.content.ComponentName;
 import android.content.Context;
@@ -28,6 +29,7 @@ import com.otaliastudios.cameraview.CameraView;
 import com.otaliastudios.cameraview.controls.Mode;
 import com.otaliastudios.cameraview.filter.Filters;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -126,6 +128,11 @@ public class CameraActivity extends AppCompatActivity implements View.OnClickLis
         });
         animator.start();
 
+        List<String> permissions = new ArrayList<>();
+        permissions.add(Manifest.permission.CAMERA);
+        permissions.add(Manifest.permission.RECORD_AUDIO);
+        requestPermissions(permissions.toArray(new String[0]),
+                    102);
 
 
         if(!canDrawOverlays(this)){
@@ -355,13 +362,13 @@ public class CameraActivity extends AppCompatActivity implements View.OnClickLis
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        boolean valid = true;
-        for (int grantResult : grantResults) {
-            valid = valid && grantResult == PackageManager.PERMISSION_GRANTED;
-        }
-        if (valid && !camera.isOpened()) {
-            camera.open();
-        }
+//        boolean valid = true;
+//        for (int grantResult : grantResults) {
+//            valid = valid && grantResult == PackageManager.PERMISSION_GRANTED;
+//        }
+//        if (valid && !camera.isOpened()) {
+//            camera.open();
+//        }
     }
 
     //endregion
