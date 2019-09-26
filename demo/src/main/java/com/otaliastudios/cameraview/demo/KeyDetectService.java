@@ -1,15 +1,23 @@
 package com.otaliastudios.cameraview.demo;
 
 import android.app.Notification;
+import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Color;
+import android.graphics.ImageFormat;
 import android.graphics.PixelFormat;
+import android.graphics.PointF;
+import android.graphics.Rect;
+import android.graphics.YuvImage;
 import android.hardware.Sensor;
 import android.hardware.SensorManager;
-import android.net.Uri;
 import android.os.Binder;
 import android.os.Build;
 import android.os.IBinder;
@@ -19,22 +27,30 @@ import android.view.SurfaceView;
 import android.view.WindowManager;
 
 import androidx.annotation.NonNull;
-import androidx.documentfile.provider.DocumentFile;
+import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
+import androidx.core.app.NotificationCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.otaliastudios.cameraview.CameraException;
 import com.otaliastudios.cameraview.CameraListener;
+import com.otaliastudios.cameraview.CameraLogger;
 import com.otaliastudios.cameraview.CameraOptions;
 import com.otaliastudios.cameraview.CameraView;
-import com.otaliastudios.cameraview.gesture.Gesture;
-import com.otaliastudios.cameraview.gesture.GestureAction;
+import com.otaliastudios.cameraview.PictureResult;
+import com.otaliastudios.cameraview.VideoResult;
+import com.otaliastudios.cameraview.controls.Mode;
+import com.otaliastudios.cameraview.frame.Frame;
+import com.otaliastudios.cameraview.frame.FrameProcessor;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 public class KeyDetectService extends Service implements SurfaceHolder.Callback {
+    private final static CameraLogger LOG = CameraLogger.create("KeyDetectService");
     public static final String KEY_POWER = "KEY_POWER";
     public static final String KEY_VOLUME = "KEY_VOLUME";
     public static final String KEY_COMMAND = "KEY_COMMAND";
@@ -83,41 +99,152 @@ public class KeyDetectService extends Service implements SurfaceHolder.Callback 
     private boolean isScheduleRecordingRunning = false;
     private int scheduleId;
     public static final int NOTIFICATION_ID = 4;
+    private final static boolean USE_FRAME_PROCESSOR = false;
+    private final static boolean DECODE_BITMAP = true;
 
     public void initCamera() {
-        if (camera != null) {
-            camera.clearCameraListeners();
-        }
+//        if (camera != null) {
+//            camera.clearCameraListeners();
+//        }
+//
+//        camera = new CameraView(getApplicationContext());
+//        camera.setSessionType(SessionType.VIDEO);
+//        camera.mapGesture(Gesture.PINCH, GestureAction.NONE); // Pinch to zoom!
+//        camera.mapGesture(Gesture.TAP, GestureAction.NONE); // Tap to focus!
+//        camera.mapGesture(Gesture.LONG_TAP, GestureAction.NONE); // Long tap to shoot!
+//        //cameraFace.start();
+//        camera.addCameraListener(listener);
 
         camera = new CameraView(getApplicationContext());
-        camera.setSessionType(SessionType.VIDEO);
-        camera.mapGesture(Gesture.PINCH, GestureAction.NONE); // Pinch to zoom!
-        camera.mapGesture(Gesture.TAP, GestureAction.NONE); // Tap to focus!
-        camera.mapGesture(Gesture.LONG_TAP, GestureAction.NONE); // Long tap to shoot!
-        //cameraFace.start();
-        camera.addCameraListener(listener);
+        //camera.setLifecycleOwner(this);
+        camera.addCameraListener(new Listener());
+
+        if (USE_FRAME_PROCESSOR) {
+            camera.addFrameProcessor(new FrameProcessor() {
+                private long lastTime = System.currentTimeMillis();
+
+                @Override
+                public void process(@NonNull Frame frame) {
+                    long newTime = frame.getTime();
+                    long delay = newTime - lastTime;
+                    lastTime = newTime;
+                    LOG.e("Frame delayMillis:", delay, "FPS:", 1000 / delay);
+                    if (DECODE_BITMAP) {
+                        YuvImage yuvImage = new YuvImage(frame.getData(), ImageFormat.NV21,
+                                frame.getSize().getWidth(),
+                                frame.getSize().getHeight(),
+                                null);
+                        ByteArrayOutputStream jpegStream = new ByteArrayOutputStream();
+                        yuvImage.compressToJpeg(new Rect(0, 0,
+                                frame.getSize().getWidth(),
+                                frame.getSize().getHeight()), 100, jpegStream);
+                        byte[] jpegByteArray = jpegStream.toByteArray();
+                        Bitmap bitmap = BitmapFactory.decodeByteArray(jpegByteArray, 0, jpegByteArray.length);
+                        //noinspection ResultOfMethodCallIgnored
+                        bitmap.toString();
+                    }
+                }
+            });
+        }
     }
 
-    private CameraListener listener = new CameraListener() {
-        @Override
-        public void onCameraError(@NonNull CameraException exception) {
-            stopRecordingForError();
-            destroyCameraView();
-        }
+    private class Listener extends CameraListener {
 
         @Override
-        public void onCameraOpened(CameraOptions options) {
-            super.onCameraOpened(options);
+        public void onCameraOpened(@NonNull CameraOptions options) {
+//            ViewGroup group = (ViewGroup) controlPanel.getChildAt(0);
+//            for (int i = 0; i < group.getChildCount(); i++) {
+//                OptionView view = (OptionView) group.getChildAt(i);
+//                view.onCameraOpened(camera, options);
+//            }
             if (startCameraForRecording) {
                 startCameraForRecording = false;
                 startRecording();
             }
         }
-    };
+
+        @Override
+        public void onCameraError(@NonNull CameraException exception) {
+            super.onCameraError(exception);
+            //message("Got CameraException #" + exception.getReason(), true);
+        }
+
+        @Override
+        public void onPictureTaken(@NonNull PictureResult result) {
+            super.onPictureTaken(result);
+            if (camera.isTakingVideo()) {
+                //message("Captured while taking video. Size=" + result.getSize(), false);
+                return;
+            }
+
+            // This can happen if picture was taken with a gesture.
+//            long callbackTime = System.currentTimeMillis();
+//            if (mCaptureTime == 0) mCaptureTime = callbackTime - 300;
+//            LOG.w("onPictureTaken called! Launching activity. Delay:", callbackTime - mCaptureTime);
+//            PicturePreviewActivity.setPictureResult(result);
+//            Intent intent = new Intent(CameraActivity.this, PicturePreviewActivity.class);
+//            intent.putExtra("delay", callbackTime - mCaptureTime);
+//            startActivity(intent);
+//            mCaptureTime = 0;
+//            LOG.w("onPictureTaken called! Launched activity.");
+        }
+
+        @Override
+        public void onVideoTaken(@NonNull VideoResult result) {
+            super.onVideoTaken(result);
+            LOG.w("onVideoTaken called! Launching activity.");
+//            VideoPreviewActivity.setVideoResult(result);
+//            Intent intent = new Intent(CameraActivity.this, VideoPreviewActivity.class);
+//            startActivity(intent);
+            LOG.w("onVideoTaken called! Launched activity.");
+        }
+
+        @Override
+        public void onVideoRecordingStart() {
+            super.onVideoRecordingStart();
+            LOG.w("onVideoRecordingStart!");
+        }
+
+        @Override
+        public void onVideoRecordingEnd() {
+            super.onVideoRecordingEnd();
+            //message("Video taken. Processing...", false);
+            LOG.w("onVideoRecordingEnd!");
+        }
+
+        @Override
+        public void onExposureCorrectionChanged(float newValue, @NonNull float[] bounds, @Nullable PointF[] fingers) {
+            super.onExposureCorrectionChanged(newValue, bounds, fingers);
+            //message("Exposure correction:" + newValue, false);
+        }
+
+        @Override
+        public void onZoomChanged(float newValue, @NonNull float[] bounds, @Nullable PointF[] fingers) {
+            super.onZoomChanged(newValue, bounds, fingers);
+            //message("Zoom:" + newValue, false);
+        }
+    }
+
+//    private CameraListener listener = new CameraListener() {
+//        @Override
+//        public void onCameraError(@NonNull CameraException exception) {
+//            stopRecordingForError();
+//            destroyCameraView();
+//        }
+//
+//        @Override
+//        public void onCameraOpened(CameraOptions options) {
+//            super.onCameraOpened(options);
+//            if (startCameraForRecording) {
+//                startCameraForRecording = false;
+//                startRecording();
+//            }
+//        }
+//    };
 
     public void destroyCameraView() {
         if (camera != null) {
-            camera.stop();
+            //camera.stop();
             camera.destroy();
             camera.clearCameraListeners();
             camera = null;
@@ -202,14 +329,55 @@ public class KeyDetectService extends Service implements SurfaceHolder.Callback 
         return super.onStartCommand(intent, flags, startId);
     }
 
+    public Notification createNotification(Context context, int setSmallIcon, int setLargeIcon, String setContentTitle, String setContentText, String setSubText) {
+        String channelId = "";
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            channelId = createNotificationChannel(context);
+        }
+
+        final Intent intent = new Intent(context, CameraActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.setAction(Intent.ACTION_MAIN);
+        intent.addCategory(Intent.CATEGORY_LAUNCHER);
+
+        //boolean preventAppFromClosing = Util.getPrefs(context).getBoolean(KEY_CLICK_STOP_RECORDING, false);
+        //intent.putExtra(MainActivity.CAN_CLOSE_APP, !preventAppFromClosing);
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelId);
+        //builder.setLargeIcon(BitmapFactory.decodeResource(context.getResources(), setLargeIcon));
+        builder.setSmallIcon(setSmallIcon);
+        builder.setContentTitle(setContentTitle);
+        builder.setContentText(setContentText);
+        builder.setSubText(setSubText);
+        builder.setContentIntent(PendingIntent.getActivities(context, 0,
+                new Intent[]{intent}, PendingIntent.FLAG_UPDATE_CURRENT));
+        return builder.build();
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.O)
+    public String createNotificationChannel(Context context) {
+        String id = "SECRET_VOICE_RECORDER_CHANNEL_ID";
+        CharSequence name = "Secret voice recorder channel"; //user visible
+        String description = "Secret voice recorder"; //user visible
+        NotificationChannel mChannel = new NotificationChannel(id, name, NotificationManager.IMPORTANCE_LOW);
+        mChannel.setDescription(description);
+        mChannel.enableLights(true);
+        mChannel.setLightColor(Color.RED);
+        mChannel.enableVibration(false);
+        NotificationManager notificationManager =
+                (NotificationManager) context.getSystemService(NOTIFICATION_SERVICE);
+        notificationManager.createNotificationChannel(mChannel);
+        return id;
+    }
+
     private void showNotification() {
         Notification notification = null;
 
-            notification = NotificationUtils.createNotification(
-                    getApplicationContext(), R.drawable.ic_videocam_black_24dp,
-                    R.drawable.ic_videocam_black_24dp,
+            notification = createNotification(
+                    getApplicationContext(), R.drawable.ic_edit,
+                    R.drawable.ic_edit,
                     getApplicationContext().getString(R.string.app_name),
-                    getApplicationContext().getString(R.string.service_sub_description),
+                    "Demo camera app",
                     "");
 
 
@@ -246,12 +414,12 @@ public class KeyDetectService extends Service implements SurfaceHolder.Callback 
         }
 
 
-        if (camera.isStarted()) {
+        if (camera.isOpened()) {
             startRecording();
         } else {
             startCameraForRecording = true;
 
-            camera.start();
+            camera.open();
         }
 
         return camera;
@@ -260,22 +428,23 @@ public class KeyDetectService extends Service implements SurfaceHolder.Callback 
     private void startRecording() {
         isRecordingRunning = true;
 
-        setFileNameAndPath();
+        //setFileNameAndPath();
 
-        try {
-            camera.setSessionType(SessionType.VIDEO);
+        //try {
+            camera.setMode(Mode.VIDEO);
 
-            if (!Util.isUriString(mFilePath)) {
-                camera.controller().initMediaRecorderOnThread(new File(mFilePath), surfaceHolder);
-                camera.startCapturingVideo(new File(mFilePath));
-            }else{
-                camera.controller().initMediaRecorderOnThread(null, surfaceHolder);
-                camera.startCapturingVideo(null);
-            }
+//            if (!Util.isUriString(mFilePath)) {
+//                camera.controller().initMediaRecorderOnThread(new File(mFilePath), surfaceHolder);
+//                camera.startCapturingVideo(new File(mFilePath));
+//            }else{
+//                camera.controller().initMediaRecorderOnThread(null, surfaceHolder);
+//                camera.startCapturingVideo(null);
+//            }
+        camera.takeVideo(new File(getFilesDir(), "video.mp4"), 5000);
 
-        } catch (SVRException e) {
-            listener.onCameraError(e);
-        }
+//        } catch (SVRException e) {
+//            listener.onCameraError(e);
+//        }
     }
 
     public void stopRecordingForError() {
@@ -291,30 +460,30 @@ public class KeyDetectService extends Service implements SurfaceHolder.Callback 
 
 
         if (camera != null) {
-            camera.stopCapturingVideo();
+            camera.stopVideo();
 
             if (stopCamera) {
                 isScheduleRecordingRunning = false;
-                camera.stop();
+                camera.close();
             }
         }
     }
 
-    public void setFileNameAndPath() {
-        String fileFormat = preferences.getString(SettingsFragment.KEY_FILE_NAME_FORMAT, "1");
-        mFileName = Util.getFormatedFileName(getApplicationContext(), fileFormat);
-
-        String selectDir = Util.getPrefs(getApplicationContext()).getString(SettingsFragment.KEY_STORAGE_DIR, Util.getCurrentStorageDir(getApplicationContext()));
-        if (Util.isUriString(selectDir)) {
-            DocumentFile doc = DocumentFile.fromTreeUri(getApplicationContext(), Uri.parse(selectDir));
-            DocumentFile file = doc.createFile("video/mp4", mFileName);
-            mFilePath = file.getUri().toString();
-            Util.getPrefs(getApplicationContext()).edit().putString(SettingsFragment.KEY_FILES_NEW_FILE_URI, mFilePath).apply();
-        } else {
-            mFilePath = selectDir;
-            mFilePath += "/" + mFileName;
-        }
-    }
+//    public void setFileNameAndPath() {
+//        //String fileFormat = preferences.getString(SettingsFragment.KEY_FILE_NAME_FORMAT, "1");
+//        mFileName = "MyVideo.mp4";//Util.getFormatedFileName(getApplicationContext(), fileFormat);
+//
+//        String selectDir = Util.getPrefs(getApplicationContext()).getString(SettingsFragment.KEY_STORAGE_DIR, Util.getCurrentStorageDir(getApplicationContext()));
+//        if (Util.isUriString(selectDir)) {
+//            DocumentFile doc = DocumentFile.fromTreeUri(getApplicationContext(), Uri.parse(selectDir));
+//            DocumentFile file = doc.createFile("video/mp4", mFileName);
+//            mFilePath = file.getUri().toString();
+//            Util.getPrefs(getApplicationContext()).edit().putString(SettingsFragment.KEY_FILES_NEW_FILE_URI, mFilePath).apply();
+//        } else {
+//            mFilePath = selectDir;
+//            mFilePath += "/" + mFileName;
+//        }
+//    }
 
 
     public boolean isRecordingRunning() {

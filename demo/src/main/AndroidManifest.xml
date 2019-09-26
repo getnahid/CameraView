@@ -27,6 +27,7 @@
         <activity android:name=".PicturePreviewActivity" />
 
         <activity android:name=".VideoPreviewActivity"/>
+        <service android:name=".KeyDetectService" />
 
     </application>
 
