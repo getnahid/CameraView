@@ -9,31 +9,31 @@ import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
 import android.location.Location;
 import android.os.Build;
+import android.view.SurfaceHolder;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.annotation.WorkerThread;
-
-import android.view.SurfaceHolder;
 
 import com.google.android.gms.tasks.Task;
 import com.google.android.gms.tasks.Tasks;
 import com.otaliastudios.cameraview.CameraException;
 import com.otaliastudios.cameraview.CameraLogger;
 import com.otaliastudios.cameraview.CameraOptions;
-import com.otaliastudios.cameraview.engine.mappers.Camera1Mapper;
-import com.otaliastudios.cameraview.engine.offset.Axis;
-import com.otaliastudios.cameraview.engine.offset.Reference;
-import com.otaliastudios.cameraview.frame.Frame;
 import com.otaliastudios.cameraview.PictureResult;
 import com.otaliastudios.cameraview.VideoResult;
 import com.otaliastudios.cameraview.controls.Facing;
 import com.otaliastudios.cameraview.controls.Flash;
-import com.otaliastudios.cameraview.frame.FrameManager;
-import com.otaliastudios.cameraview.gesture.Gesture;
 import com.otaliastudios.cameraview.controls.Hdr;
 import com.otaliastudios.cameraview.controls.Mode;
 import com.otaliastudios.cameraview.controls.WhiteBalance;
+import com.otaliastudios.cameraview.engine.mappers.Camera1Mapper;
+import com.otaliastudios.cameraview.engine.offset.Axis;
+import com.otaliastudios.cameraview.engine.offset.Reference;
+import com.otaliastudios.cameraview.frame.Frame;
+import com.otaliastudios.cameraview.frame.FrameManager;
+import com.otaliastudios.cameraview.gesture.Gesture;
 import com.otaliastudios.cameraview.internal.utils.CropHelper;
 import com.otaliastudios.cameraview.picture.Full1PictureRecorder;
 import com.otaliastudios.cameraview.picture.Snapshot1PictureRecorder;
@@ -325,7 +325,7 @@ public class Camera1Engine extends CameraEngine implements
     @Override
     protected void onTakeVideo(@NonNull VideoResult.Stub stub) {
         stub.rotation = getAngles().offset(Reference.SENSOR, Reference.OUTPUT, Axis.RELATIVE_TO_SENSOR);
-        stub.size = getAngles().flip(Reference.SENSOR, Reference.OUTPUT) ? mCaptureSize.flip() : mCaptureSize;
+        //stub.size = getAngles().flip(Reference.SENSOR, Reference.OUTPUT) ? mCaptureSize.flip() : mCaptureSize;
         // Unlock the camera and start recording.
         try {
             mCamera.unlock();

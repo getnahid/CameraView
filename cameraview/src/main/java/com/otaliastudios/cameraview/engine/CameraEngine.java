@@ -3,51 +3,48 @@ package com.otaliastudios.cameraview.engine;
 import android.content.Context;
 import android.graphics.PointF;
 import android.location.Location;
-
-
 import android.os.Handler;
 import android.os.Looper;
-
-import com.google.android.gms.tasks.Continuation;
-import com.google.android.gms.tasks.OnCompleteListener;
-import com.google.android.gms.tasks.OnFailureListener;
-import com.google.android.gms.tasks.SuccessContinuation;
-import com.google.android.gms.tasks.TaskCompletionSource;
-import com.google.android.gms.tasks.Task;
-import com.otaliastudios.cameraview.CameraException;
-import com.otaliastudios.cameraview.CameraLogger;
-import com.otaliastudios.cameraview.CameraOptions;
-import com.otaliastudios.cameraview.PictureResult;
-import com.otaliastudios.cameraview.engine.mappers.Camera1Mapper;
-import com.otaliastudios.cameraview.overlay.Overlay;
-import com.otaliastudios.cameraview.VideoResult;
-import com.otaliastudios.cameraview.engine.offset.Angles;
-import com.otaliastudios.cameraview.engine.offset.Reference;
-import com.otaliastudios.cameraview.frame.Frame;
-import com.otaliastudios.cameraview.frame.FrameManager;
-import com.otaliastudios.cameraview.internal.utils.Op;
-import com.otaliastudios.cameraview.internal.utils.WorkerHandler;
-import com.otaliastudios.cameraview.picture.PictureRecorder;
-import com.otaliastudios.cameraview.preview.CameraPreview;
-import com.otaliastudios.cameraview.controls.Audio;
-import com.otaliastudios.cameraview.controls.Facing;
-import com.otaliastudios.cameraview.controls.Flash;
-import com.otaliastudios.cameraview.gesture.Gesture;
-import com.otaliastudios.cameraview.controls.Hdr;
-import com.otaliastudios.cameraview.controls.Mode;
-import com.otaliastudios.cameraview.controls.VideoCodec;
-import com.otaliastudios.cameraview.controls.WhiteBalance;
-import com.otaliastudios.cameraview.size.AspectRatio;
-import com.otaliastudios.cameraview.size.Size;
-import com.otaliastudios.cameraview.size.SizeSelector;
-import com.otaliastudios.cameraview.size.SizeSelectors;
-import com.otaliastudios.cameraview.video.VideoRecorder;
 
 import androidx.annotation.CallSuper;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.annotation.WorkerThread;
+
+import com.google.android.gms.tasks.Continuation;
+import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.SuccessContinuation;
+import com.google.android.gms.tasks.Task;
+import com.google.android.gms.tasks.TaskCompletionSource;
+import com.otaliastudios.cameraview.CameraException;
+import com.otaliastudios.cameraview.CameraLogger;
+import com.otaliastudios.cameraview.CameraOptions;
+import com.otaliastudios.cameraview.PictureResult;
+import com.otaliastudios.cameraview.VideoResult;
+import com.otaliastudios.cameraview.controls.Audio;
+import com.otaliastudios.cameraview.controls.Facing;
+import com.otaliastudios.cameraview.controls.Flash;
+import com.otaliastudios.cameraview.controls.Hdr;
+import com.otaliastudios.cameraview.controls.Mode;
+import com.otaliastudios.cameraview.controls.VideoCodec;
+import com.otaliastudios.cameraview.controls.WhiteBalance;
+import com.otaliastudios.cameraview.engine.offset.Angles;
+import com.otaliastudios.cameraview.engine.offset.Reference;
+import com.otaliastudios.cameraview.frame.Frame;
+import com.otaliastudios.cameraview.frame.FrameManager;
+import com.otaliastudios.cameraview.gesture.Gesture;
+import com.otaliastudios.cameraview.internal.utils.Op;
+import com.otaliastudios.cameraview.internal.utils.WorkerHandler;
+import com.otaliastudios.cameraview.overlay.Overlay;
+import com.otaliastudios.cameraview.picture.PictureRecorder;
+import com.otaliastudios.cameraview.preview.CameraPreview;
+import com.otaliastudios.cameraview.size.AspectRatio;
+import com.otaliastudios.cameraview.size.Size;
+import com.otaliastudios.cameraview.size.SizeSelector;
+import com.otaliastudios.cameraview.size.SizeSelectors;
+import com.otaliastudios.cameraview.video.VideoRecorder;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -712,13 +709,15 @@ public abstract class CameraEngine implements
                                 @Override
                                 public Task<Void> then(@Nullable Void aVoid) {
                                     outTask.trySetResult(null);
-                                    return startBind();
+                                    return null;
+                                    //return startBind();
                                 }
                             }).onSuccessTask(mHandler.getExecutor(), new SuccessContinuation<Void, Void>() {
                                 @NonNull
                                 @Override
                                 public Task<Void> then(@Nullable Void aVoid) {
-                                    return startPreview();
+                                    return null;
+                                    //return startPreview();
                                 }
                             });
                         }
@@ -1155,7 +1154,7 @@ public abstract class CameraEngine implements
             @Override
             public void run() {
                 LOG.v("takeVideo", "performing. BindState:", getBindState(), "isTakingVideo:", isTakingVideo());
-                if (getBindState() < STATE_STARTED) return;
+                //if (getBindState() < STATE_STARTED) return;
                 if (isTakingVideo()) return;
                 if (mMode == Mode.PICTURE) {
                     throw new IllegalStateException("Can't record video while in PICTURE mode");
