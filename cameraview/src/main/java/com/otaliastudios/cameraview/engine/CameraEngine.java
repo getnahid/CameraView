@@ -704,22 +704,24 @@ public abstract class CameraEngine implements
                                 public void onFailure(@NonNull Exception e) {
                                     outTask.trySetException(e);
                                 }
-                            }).onSuccessTask(mHandler.getExecutor(), new SuccessContinuation<Void, Void>() {
-                                @NonNull
-                                @Override
-                                public Task<Void> then(@Nullable Void aVoid) {
-                                    outTask.trySetResult(null);
-                                    return null;
-                                    //return startBind();
-                                }
-                            }).onSuccessTask(mHandler.getExecutor(), new SuccessContinuation<Void, Void>() {
-                                @NonNull
-                                @Override
-                                public Task<Void> then(@Nullable Void aVoid) {
-                                    return null;
-                                    //return startPreview();
-                                }
-                            });
+                            })
+//                                    .onSuccessTask(mHandler.getExecutor(), new SuccessContinuation<Void, Void>() {
+//                                @NonNull
+//                                @Override
+//                                public Task<Void> then(@Nullable Void aVoid) {
+//                                    outTask.trySetResult(null);
+//                                    return null;
+//                                    //return startBind();
+//                                }
+//                            }).onSuccessTask(mHandler.getExecutor(), new SuccessContinuation<Void, Void>() {
+//                                @NonNull
+//                                @Override
+//                                public Task<Void> then(@Nullable Void aVoid) {
+//                                    return null;
+//                                    //return startPreview();
+//                                }
+//                            })
+                                    ;
                         }
                     });
                 // } else {

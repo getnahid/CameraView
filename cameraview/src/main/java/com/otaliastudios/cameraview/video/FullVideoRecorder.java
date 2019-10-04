@@ -3,15 +3,15 @@ package com.otaliastudios.cameraview.video;
 import android.media.CamcorderProfile;
 import android.media.MediaRecorder;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
 import com.otaliastudios.cameraview.CameraLogger;
 import com.otaliastudios.cameraview.VideoResult;
 import com.otaliastudios.cameraview.controls.Audio;
 import com.otaliastudios.cameraview.controls.VideoCodec;
 import com.otaliastudios.cameraview.internal.DeviceEncoders;
 import com.otaliastudios.cameraview.size.Size;
-
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 
 /**
  * A {@link VideoRecorder} that uses {@link android.media.MediaRecorder} APIs.
@@ -92,6 +92,8 @@ public abstract class FullVideoRecorder extends VideoRecorder {
         if (hasAudio) {
             stub.audioBitRate = stub.audioBitRate > 0 ? stub.audioBitRate : mProfile.audioBitRate;
         }
+
+        stub.size = new Size(mProfile.videoFrameWidth, mProfile.videoFrameHeight);
 
         // Check DeviceEncoders support
         DeviceEncoders encoders = new DeviceEncoders(videoType, audioType, DeviceEncoders.MODE_TAKE_FIRST);

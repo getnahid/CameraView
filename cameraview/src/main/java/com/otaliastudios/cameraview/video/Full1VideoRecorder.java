@@ -2,15 +2,13 @@ package com.otaliastudios.cameraview.video;
 
 import android.hardware.Camera;
 import android.media.MediaRecorder;
-import android.util.Log;
+
+import androidx.annotation.NonNull;
 
 import com.otaliastudios.cameraview.CameraLogger;
 import com.otaliastudios.cameraview.VideoResult;
 import com.otaliastudios.cameraview.engine.Camera1Engine;
 import com.otaliastudios.cameraview.internal.utils.CamcorderProfiles;
-import com.otaliastudios.cameraview.size.Size;
-
-import androidx.annotation.NonNull;
 
 /**
  * A {@link VideoRecorder} that uses {@link MediaRecorder} APIs
@@ -39,8 +37,8 @@ public class Full1VideoRecorder extends FullVideoRecorder {
         mediaRecorder.setVideoSource(MediaRecorder.VideoSource.CAMERA);
 
         // Get a profile of quality compatible with the chosen size.
-        Size size = stub.rotation % 180 != 0 ? stub.size.flip() : stub.size;
-        mProfile = CamcorderProfiles.get(mCameraId, size);
+        //Size size = stub.rotation % 180 != 0 ? stub.size.flip() : stub.size;
+        mProfile = CamcorderProfiles.get(mCameraId, null);
         return super.onPrepareMediaRecorder(stub, mediaRecorder);
     }
 
