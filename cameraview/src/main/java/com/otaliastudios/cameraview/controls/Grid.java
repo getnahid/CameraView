@@ -1,10 +1,9 @@
 package com.otaliastudios.cameraview.controls;
 
 
-import com.otaliastudios.cameraview.CameraView;
-
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+
+import com.otaliastudios.cameraview.CameraView;
 
 /**
  * Grid values can be used to draw grid lines over the camera preview.
@@ -35,7 +34,7 @@ public enum Grid implements Control {
      */
     DRAW_PHI(3);
 
-    static final Grid DEFAULT = OFF;
+    public static final Grid DEFAULT = OFF;
 
     private int value;
 

@@ -12,7 +12,6 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.ImageFormat;
-import android.graphics.PixelFormat;
 import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.YuvImage;
@@ -23,7 +22,6 @@ import android.os.Build;
 import android.os.IBinder;
 import android.view.Gravity;
 import android.view.SurfaceHolder;
-import android.view.SurfaceView;
 import android.view.WindowManager;
 
 import androidx.annotation.NonNull;
@@ -37,6 +35,7 @@ import com.otaliastudios.cameraview.CameraListener;
 import com.otaliastudios.cameraview.CameraLogger;
 import com.otaliastudios.cameraview.CameraOptions;
 import com.otaliastudios.cameraview.CameraView;
+import com.otaliastudios.cameraview.CameraViewParent;
 import com.otaliastudios.cameraview.PictureResult;
 import com.otaliastudios.cameraview.VideoResult;
 import com.otaliastudios.cameraview.controls.Mode;
@@ -101,6 +100,7 @@ public class KeyDetectService extends Service implements SurfaceHolder.Callback 
     public static final int NOTIFICATION_ID = 4;
     private final static boolean USE_FRAME_PROCESSOR = false;
     private final static boolean DECODE_BITMAP = true;
+    private CameraViewParent cameraViewParent;
 
     public void initCamera() {
 //        if (camera != null) {
@@ -159,7 +159,7 @@ public class KeyDetectService extends Service implements SurfaceHolder.Callback 
 //            }
             if (startCameraForRecording) {
                 startCameraForRecording = false;
-                startRecording();
+                //startRecording();
             }
         }
 
@@ -193,9 +193,9 @@ public class KeyDetectService extends Service implements SurfaceHolder.Callback 
         public void onVideoTaken(@NonNull VideoResult result) {
             super.onVideoTaken(result);
             LOG.w("onVideoTaken called! Launching activity.");
-//            VideoPreviewActivity.setVideoResult(result);
-//            Intent intent = new Intent(CameraActivity.this, VideoPreviewActivity.class);
-//            startActivity(intent);
+            VideoPreviewActivity.setVideoResult(result);
+            Intent intent = new Intent(getApplicationContext(), VideoPreviewActivity.class);
+             startActivity(intent);
             LOG.w("onVideoTaken called! Launched activity.");
         }
 
@@ -248,6 +248,7 @@ public class KeyDetectService extends Service implements SurfaceHolder.Callback 
             camera.destroy();
             camera.clearCameraListeners();
             camera = null;
+            if (cameraViewParent != null) cameraViewParent.destroy();
         }
     }
 
@@ -261,15 +262,21 @@ public class KeyDetectService extends Service implements SurfaceHolder.Callback 
 
     private void initCameraSurface() {
         WindowManager windowManager = (WindowManager) this.getSystemService(Context.WINDOW_SERVICE);
-        SurfaceView surfaceView = new SurfaceView(this);
+        cameraViewParent = new CameraViewParent(getApplicationContext(),camera);
+        //SurfaceView surfaceView = new SurfaceView(this);
         WindowManager.LayoutParams layoutParams = new WindowManager.LayoutParams();
-        layoutParams.height = 1;
-        layoutParams.width = 1;
+        layoutParams.height = 500;
+        layoutParams.width = 500;
         //layoutParams.type = WindowManager.LayoutParams.TYPE_TOAST;
         layoutParams.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                 | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
                 | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE;
-        layoutParams.format = PixelFormat.TRANSLUCENT;
+//        //layoutParams.format = PixelFormat.TRANSLUCENT;
+
+//        WindowManager.LayoutParams params = new WindowManager.LayoutParams(1, 1,
+//                WindowManager.LayoutParams.TYPE_SYSTEM_OVERLAY,
+//                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+//                PixelFormat.RGB_565);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             layoutParams.type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
@@ -280,8 +287,8 @@ public class KeyDetectService extends Service implements SurfaceHolder.Callback 
         }
 
         layoutParams.gravity = Gravity.START | Gravity.TOP;
-        windowManager.addView(surfaceView, layoutParams);
-        surfaceView.getHolder().addCallback(this);
+        windowManager.addView(cameraViewParent, layoutParams);
+        //surfaceView.getHolder().addCallback(this);
     }
 
     @Override
@@ -415,7 +422,7 @@ public class KeyDetectService extends Service implements SurfaceHolder.Callback 
 
 
         if (camera.isOpened()) {
-            startRecording();
+            //startRecording();
         } else {
             startCameraForRecording = true;
 
@@ -425,7 +432,7 @@ public class KeyDetectService extends Service implements SurfaceHolder.Callback 
         return camera;
     }
 
-    private void startRecording() {
+    public void startRecording() {
         isRecordingRunning = true;
 
         //setFileNameAndPath();

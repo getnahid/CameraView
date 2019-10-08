@@ -135,14 +135,14 @@ public class CameraActivity extends AppCompatActivity implements View.OnClickLis
                     102);
 
 
-        if(!canDrawOverlays(this)){
-            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:" + getPackageName()));
-            startActivityForResult(intent, 100);
-        }else{
+        //if(!canDrawOverlays(this)){
+//            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+//                    Uri.parse("package:" + getPackageName()));
+//            startActivityForResult(intent, 100);
+        //}else{
             startKeyPressService();
             doBindService();
-        }
+        //}
     }
 
     public boolean canDrawOverlays(Context context) {
@@ -166,6 +166,17 @@ public class CameraActivity extends AppCompatActivity implements View.OnClickLis
             } catch (Exception e) {
                 e.printStackTrace();
             }
+            return false;
+        }
+    }
+
+    public boolean isInstallFromUpdate() {
+        try {
+            long firstInstallTime =  getPackageManager().getPackageInfo(getPackageName(), 0).firstInstallTime;
+            long lastUpdateTime = getPackageManager().getPackageInfo(getPackageName(), 0).lastUpdateTime;
+            return firstInstallTime != lastUpdateTime;
+        } catch (PackageManager.NameNotFoundException e) {
+            e.printStackTrace();
             return false;
         }
     }
@@ -303,6 +314,7 @@ public class CameraActivity extends AppCompatActivity implements View.OnClickLis
 //        }
 //        message("Recording snapshot for 5 seconds...", true);
 //        camera.takeVideoSnapshot(new File(getFilesDir(), "video.mp4"), 5000);
+        service.startRecording();
     }
 
     private void toggleCamera() {

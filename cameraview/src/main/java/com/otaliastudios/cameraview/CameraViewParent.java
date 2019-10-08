@@ -3,6 +3,7 @@ package com.otaliastudios.cameraview;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.graphics.PointF;
 import android.preference.PreferenceManager;
 import android.util.AttributeSet;
@@ -76,7 +77,7 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
     private CameraPreview mCameraPreview;
     private Lifecycle mLifecycle;
     private boolean mKeepScreenOn;
-    private Preview mPreview;
+    private Preview mPreview = Preview.DEFAULT;
     private final static String TAG = CameraView.class.getSimpleName();
     private static final CameraLogger LOG = CameraLogger.create(TAG);
     private HashMap<Gesture, GestureAction> mGestureMap = new HashMap<>(4);
@@ -99,6 +100,7 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
         mInEditor = isInEditMode();
         if (mInEditor) return;
         setWillNotDraw(false);
+        setBackgroundColor(Color.BLUE);
         preference = PreferenceManager.getDefaultSharedPreferences(context);
         // Gestures
         mPinchGestureFinder = new PinchGestureFinder(mCameraCallbacks);
@@ -126,9 +128,9 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
         MarkerParser markers = new MarkerParser(preference);
         // Apply markers
         setAutoFocusMarker(markers.getAutoFocusMarker());
-
-        //setGrid(controls.getGrid());
-        //setGridColor(gridColor);
+        int gridColor = GridLinesLayout.DEFAULT_COLOR;
+        setGrid(Grid.DEFAULT);
+        setGridColor(gridColor);
     }
 
     /**

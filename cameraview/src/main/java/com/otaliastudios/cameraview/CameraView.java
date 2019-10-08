@@ -42,7 +42,6 @@ import com.otaliastudios.cameraview.frame.Frame;
 import com.otaliastudios.cameraview.frame.FrameProcessor;
 import com.otaliastudios.cameraview.gesture.Gesture;
 import com.otaliastudios.cameraview.gesture.GestureFinder;
-import com.otaliastudios.cameraview.internal.GridLinesLayout;
 import com.otaliastudios.cameraview.internal.utils.OrientationHelper;
 import com.otaliastudios.cameraview.internal.utils.WorkerHandler;
 import com.otaliastudios.cameraview.overlay.OverlayLayout;
@@ -139,7 +138,7 @@ public class CameraView {
 
         // Camera engine params
         //int gridColor = a.getColor(R.styleable.CameraView_cameraGridColor, GridLinesLayout.DEFAULT_COLOR);
-        int gridColor = GridLinesLayout.DEFAULT_COLOR;
+        //int gridColor = GridLinesLayout.DEFAULT_COLOR;
         long videoMaxSize = (long) preference.getFloat(KEY_CAMERA_VIDEO_MAX_SIZE, 0);
         int videoMaxDuration = preference.getInt(KEY_CAMERA_VIDEO_MAX_DURATION, 0);
         int videoBitRate = preference.getInt(KEY_CAMERA_VIDEO_BIT_RATE, 0);

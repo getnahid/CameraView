@@ -135,7 +135,7 @@ public abstract class FullVideoRecorder extends VideoRecorder {
         }
         mMediaRecorder.setOutputFile(stub.file.getAbsolutePath());
         mMediaRecorder.setOrientationHint(stub.rotation);
-        mMediaRecorder.setMaxFileSize(stub.maxSize);
+        //mMediaRecorder.setMaxFileSize(stub.maxSize);
         mMediaRecorder.setMaxDuration(stub.maxDuration);
         mMediaRecorder.setOnInfoListener(new MediaRecorder.OnInfoListener() {
             @Override
@@ -152,6 +152,8 @@ public abstract class FullVideoRecorder extends VideoRecorder {
                 }
             }
         });
+
+        //mMediaRecorder.setPreviewDisplay();
 
         // Prepare the Recorder
         try {
