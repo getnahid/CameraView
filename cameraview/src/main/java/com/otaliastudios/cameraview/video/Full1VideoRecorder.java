@@ -2,6 +2,7 @@ package com.otaliastudios.cameraview.video;
 
 import android.hardware.Camera;
 import android.media.MediaRecorder;
+import android.view.SurfaceView;
 
 import androidx.annotation.NonNull;
 
@@ -29,6 +30,7 @@ public class Full1VideoRecorder extends FullVideoRecorder {
         mCamera = camera;
         mEngine = engine;
         mCameraId = cameraId;
+        setSurfaceView((SurfaceView) mEngine.getPreview().getView());
     }
 
     @Override

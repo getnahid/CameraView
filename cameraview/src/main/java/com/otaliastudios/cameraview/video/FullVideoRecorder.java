@@ -2,6 +2,7 @@ package com.otaliastudios.cameraview.video;
 
 import android.media.CamcorderProfile;
 import android.media.MediaRecorder;
+import android.view.SurfaceView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -33,6 +34,7 @@ public abstract class FullVideoRecorder extends VideoRecorder {
     @SuppressWarnings("WeakerAccess") protected MediaRecorder mMediaRecorder;
     @SuppressWarnings("WeakerAccess") protected CamcorderProfile mProfile;
     private boolean mMediaRecorderPrepared;
+    private SurfaceView surfaceView;
 
 
     FullVideoRecorder(@Nullable VideoResultListener listener) {
@@ -153,7 +155,7 @@ public abstract class FullVideoRecorder extends VideoRecorder {
             }
         });
 
-        //mMediaRecorder.setPreviewDisplay();
+        mMediaRecorder.setPreviewDisplay(surfaceView.getHolder().getSurface());
 
         // Prepare the Recorder
         try {
@@ -208,6 +210,10 @@ public abstract class FullVideoRecorder extends VideoRecorder {
         mMediaRecorder = null;
         mMediaRecorderPrepared = false;
         dispatchResult();
+    }
+
+    public void setSurfaceView(SurfaceView view){
+        surfaceView = view;
     }
 
 }

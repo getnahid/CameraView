@@ -136,9 +136,9 @@ public class CameraActivity extends AppCompatActivity implements View.OnClickLis
 
 
         //if(!canDrawOverlays(this)){
-//            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-//                    Uri.parse("package:" + getPackageName()));
-//            startActivityForResult(intent, 100);
+            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getPackageName()));
+            startActivityForResult(intent, 100);
         //}else{
             startKeyPressService();
             doBindService();
