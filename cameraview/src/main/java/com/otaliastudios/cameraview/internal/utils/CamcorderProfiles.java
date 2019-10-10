@@ -81,6 +81,6 @@ public class CamcorderProfiles {
 //            }
 //        }
         // Should never happen, but fallback to low.
-        return CamcorderProfile.get(cameraId, CamcorderProfile.QUALITY_720P);
+        return CamcorderProfile.get(cameraId, CamcorderProfile.QUALITY_HIGH);
     }
 }

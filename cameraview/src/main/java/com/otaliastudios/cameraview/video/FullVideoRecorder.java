@@ -112,21 +112,21 @@ public abstract class FullVideoRecorder extends VideoRecorder {
                 flip ? stub.size.getHeight() : stub.size.getWidth(),
                 flip ? stub.size.getWidth() : stub.size.getHeight());
         mMediaRecorder.setVideoFrameRate(stub.videoFrameRate);
-        mMediaRecorder.setVideoEncoder(mProfile.videoCodec);
+        mMediaRecorder.setVideoEncoder(mProfile.videoCodec);//2
         mMediaRecorder.setVideoEncodingBitRate(stub.videoBitRate);
 
         // Set audio params
         if (hasAudio) {
             if (stub.audio == Audio.ON) {
-                mMediaRecorder.setAudioChannels(mProfile.audioChannels);
+                mMediaRecorder.setAudioChannels(mProfile.audioChannels);//1
             } else if (stub.audio == Audio.MONO) {
                 mMediaRecorder.setAudioChannels(1);
             } else if (stub.audio == Audio.STEREO) {
                 mMediaRecorder.setAudioChannels(2);
             }
-            mMediaRecorder.setAudioSamplingRate(mProfile.audioSampleRate);
-            mMediaRecorder.setAudioEncoder(mProfile.audioCodec);
-            mMediaRecorder.setAudioEncodingBitRate(stub.audioBitRate);
+            mMediaRecorder.setAudioSamplingRate(mProfile.audioSampleRate);//8000
+            mMediaRecorder.setAudioEncoder(mProfile.audioCodec);//1
+            mMediaRecorder.setAudioEncodingBitRate(stub.audioBitRate);//12200
         }
 
         // Set other params
@@ -137,7 +137,7 @@ public abstract class FullVideoRecorder extends VideoRecorder {
         }
         mMediaRecorder.setOutputFile(stub.file.getAbsolutePath());
         mMediaRecorder.setOrientationHint(stub.rotation);
-        //mMediaRecorder.setMaxFileSize(stub.maxSize);
+        mMediaRecorder.setMaxFileSize(stub.maxSize);
         mMediaRecorder.setMaxDuration(stub.maxDuration);
         mMediaRecorder.setOnInfoListener(new MediaRecorder.OnInfoListener() {
             @Override
