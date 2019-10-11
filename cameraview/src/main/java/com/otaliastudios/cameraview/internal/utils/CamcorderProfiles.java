@@ -8,7 +8,11 @@ import androidx.annotation.NonNull;
 
 import com.otaliastudios.cameraview.size.Size;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -61,26 +65,26 @@ public class CamcorderProfiles {
      */
     @NonNull
     public static CamcorderProfile get(int cameraId, @NonNull Size targetSize) {
-//        final long targetArea = (long) targetSize.getWidth() * targetSize.getHeight();
-//        List<Size> sizes = new ArrayList<>(sizeToProfileMap.keySet());
-//        Collections.sort(sizes, new Comparator<Size>() {
-//            @Override
-//            public int compare(Size s1, Size s2) {
-//                long a1 = Math.abs(s1.getWidth() * s1.getHeight() - targetArea);
-//                long a2 = Math.abs(s2.getWidth() * s2.getHeight() - targetArea);
-//                //noinspection UseCompareMethod
-//                return (a1 < a2) ? -1 : ((a1 == a2) ? 0 : 1);
-//            }
-//        });
-//        while (sizes.size() > 0) {
-//            Size candidate = sizes.remove(0);
-//            //noinspection ConstantConditions
-//            int quality = sizeToProfileMap.get(candidate);
-//            if (CamcorderProfile.hasProfile(cameraId, quality)) {
-//                return CamcorderProfile.get(cameraId, quality);
-//            }
-//        }
+        final long targetArea = (long) targetSize.getWidth() * targetSize.getHeight();
+        List<Size> sizes = new ArrayList<>(sizeToProfileMap.keySet());
+        Collections.sort(sizes, new Comparator<Size>() {
+            @Override
+            public int compare(Size s1, Size s2) {
+                long a1 = Math.abs(s1.getWidth() * s1.getHeight() - targetArea);
+                long a2 = Math.abs(s2.getWidth() * s2.getHeight() - targetArea);
+                //noinspection UseCompareMethod
+                return (a1 < a2) ? -1 : ((a1 == a2) ? 0 : 1);
+            }
+        });
+        while (sizes.size() > 0) {
+            Size candidate = sizes.remove(0);
+            //noinspection ConstantConditions
+            int quality = sizeToProfileMap.get(candidate);
+            if (CamcorderProfile.hasProfile(cameraId, quality)) {
+                return CamcorderProfile.get(cameraId, quality);
+            }
+        }
         // Should never happen, but fallback to low.
-        return CamcorderProfile.get(cameraId, CamcorderProfile.QUALITY_HIGH);
+        return CamcorderProfile.get(cameraId, CamcorderProfile.QUALITY_LOW);
     }
 }

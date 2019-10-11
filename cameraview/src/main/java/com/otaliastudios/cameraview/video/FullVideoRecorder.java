@@ -95,7 +95,7 @@ public abstract class FullVideoRecorder extends VideoRecorder {
             stub.audioBitRate = stub.audioBitRate > 0 ? stub.audioBitRate : mProfile.audioBitRate;
         }
 
-        stub.size = new Size(mProfile.videoFrameWidth, mProfile.videoFrameHeight);
+        //stub.size = new Size(mProfile.videoFrameWidth, mProfile.videoFrameHeight);
 
         // Check DeviceEncoders support
         DeviceEncoders encoders = new DeviceEncoders(videoType, audioType, DeviceEncoders.MODE_TAKE_FIRST);
