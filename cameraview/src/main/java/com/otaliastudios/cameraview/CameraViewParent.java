@@ -44,6 +44,7 @@ import com.otaliastudios.cameraview.markers.MarkerParser;
 import com.otaliastudios.cameraview.overlay.OverlayLayout;
 import com.otaliastudios.cameraview.preview.CameraPreview;
 import com.otaliastudios.cameraview.preview.FilterCameraPreview;
+import com.otaliastudios.cameraview.preview.GlCameraPreview;
 import com.otaliastudios.cameraview.preview.SurfaceCameraPreview;
 import com.otaliastudios.cameraview.preview.TextureCameraPreview;
 import com.otaliastudios.cameraview.size.Size;
@@ -165,9 +166,8 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
                 }
             }
             case GL_SURFACE: default: {
-//                mPreview = Preview.GL_SURFACE;
-//                return new GlCameraPreview(context, container);
-                return new SurfaceCameraPreview(context, container);
+                mPreview = Preview.GL_SURFACE;
+                return new GlCameraPreview(context, container);
             }
         }
     }

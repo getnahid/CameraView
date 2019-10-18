@@ -15,9 +15,6 @@ import com.otaliastudios.cameraview.internal.DeviceEncoders;
 import com.otaliastudios.cameraview.internal.utils.CamcorderProfiles;
 import com.otaliastudios.cameraview.size.Size;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-
 /**
  * A {@link VideoRecorder} that uses {@link android.media.MediaRecorder} APIs.
  *
@@ -226,7 +223,8 @@ public abstract class FullVideoRecorder extends VideoRecorder {
             }
         });
 
-        mMediaRecorder.setPreviewDisplay(surfaceView.getHolder().getSurface());
+        //Only need for serface view
+        //mMediaRecorder.setPreviewDisplay(surfaceView.getHolder().getSurface());
 
         // 8. Prepare the Recorder
         try {
