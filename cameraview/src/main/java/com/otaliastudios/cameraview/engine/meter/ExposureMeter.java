@@ -32,7 +32,8 @@ public class ExposureMeter extends BaseMeter {
     @Override
     protected boolean checkIsSupported(@NonNull ActionHolder holder) {
         // In our case, this means checking if we support the AE precapture trigger.
-        boolean isNotLegacy = readCharacteristic(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL, -1)
+        boolean isNotLegacy = readCharacteristic(
+                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL, -1)
                 != CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY;
         Integer aeMode = holder.getBuilder(this).get(CaptureRequest.CONTROL_AE_MODE);
         boolean isAEOn = aeMode != null &&
@@ -40,7 +41,8 @@ public class ExposureMeter extends BaseMeter {
                         || aeMode == CameraCharacteristics.CONTROL_AE_MODE_ON_ALWAYS_FLASH
                         || aeMode == CameraCharacteristics.CONTROL_AE_MODE_ON_AUTO_FLASH
                         || aeMode == CameraCharacteristics.CONTROL_AE_MODE_ON_AUTO_FLASH_REDEYE
-                        || aeMode == 5 /* CameraCharacteristics.CONTROL_AE_MODE_ON_EXTERNAL_FLASH, API 28 */);
+                        || aeMode == 5
+                        /* CameraCharacteristics.CONTROL_AE_MODE_ON_EXTERNAL_FLASH, API 28 */);
         boolean result = isNotLegacy && isAEOn;
         LOG.i("checkIsSupported:", result);
         return result;
@@ -48,10 +50,16 @@ public class ExposureMeter extends BaseMeter {
 
     @Override
     protected boolean checkShouldSkip(@NonNull ActionHolder holder) {
-        Integer aeState = holder.getLastResult(this).get(CaptureResult.CONTROL_AE_STATE);
-        boolean result = aeState != null && aeState == CaptureResult.CONTROL_AE_STATE_CONVERGED;
-        LOG.i("checkShouldSkip:", result);
-        return result;
+        CaptureResult lastResult = holder.getLastResult(this);
+        if (lastResult != null) {
+            Integer aeState = lastResult.get(CaptureResult.CONTROL_AE_STATE);
+            boolean result = aeState != null && aeState == CaptureResult.CONTROL_AE_STATE_CONVERGED;
+            LOG.i("checkShouldSkip:", result);
+            return result;
+        } else {
+            LOG.i("checkShouldSkip: false - lastResult is null.");
+            return false;
+        }
     }
 
     @Override
@@ -63,7 +71,8 @@ public class ExposureMeter extends BaseMeter {
                 CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER_START);
 
         // Check the regions.
-        int maxRegions = readCharacteristic(CameraCharacteristics.CONTROL_MAX_REGIONS_AE, 0);
+        int maxRegions = readCharacteristic(CameraCharacteristics.CONTROL_MAX_REGIONS_AE,
+                0);
         if (!areas.isEmpty() && maxRegions > 0) {
             int max = Math.min(maxRegions, areas.size());
             holder.getBuilder(this).set(CaptureRequest.CONTROL_AE_REGIONS,
@@ -103,8 +112,8 @@ public class ExposureMeter extends BaseMeter {
                     // PRECAPTURE is a transient state. Being here might mean that precapture run
                     // and was successful, OR that the trigger was not even received yet. To
                     // distinguish, check the trigger state.
-                    if (aeTriggerState != null
-                            && aeTriggerState == CaptureResult.CONTROL_AE_PRECAPTURE_TRIGGER_START) {
+                    if (aeTriggerState != null && aeTriggerState
+                            == CaptureResult.CONTROL_AE_PRECAPTURE_TRIGGER_START) {
                         setSuccessful(true);
                         setState(STATE_COMPLETED);
                     }

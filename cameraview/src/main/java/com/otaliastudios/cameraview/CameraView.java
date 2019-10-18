@@ -206,7 +206,8 @@ public class CameraView {
     private void doInstantiateEngine() {
         LOG.w("doInstantiateEngine:", "instantiating. engine:", mEngine);
         mCameraEngine = instantiateCameraEngine(mEngine, mCameraCallbacks);
-        LOG.w("doInstantiateEngine:", "instantiated. engine:", mCameraEngine.getClass().getSimpleName());
+        LOG.w("doInstantiateEngine:", "instantiated. engine:",
+                mCameraEngine.getClass().getSimpleName());
         mCameraEngine.setOverlay(mOverlayLayout);
     }
 
@@ -222,8 +223,11 @@ public class CameraView {
      * @return the engine
      */
     @NonNull
-    protected CameraEngine instantiateCameraEngine(@NonNull Engine engine, @NonNull CameraEngine.Callback callback) {
-        if (mExperimental && engine == Engine.CAMERA2 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+    protected CameraEngine instantiateCameraEngine(@NonNull Engine engine,
+                                                   @NonNull CameraEngine.Callback callback) {
+        if (mExperimental
+                && engine == Engine.CAMERA2
+                && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             return new Camera2Engine(callback);
         } else {
             mEngine = Engine.CAMERA1;
@@ -240,7 +244,7 @@ public class CameraView {
             // attached. That's why we instantiate the preview here.
            // doInstantiatePreview(parent);
         //}
-        mOrientationHelper.enable(getContext());
+        mOrientationHelper.enable();
     }
 
     //@Override
@@ -251,7 +255,6 @@ public class CameraView {
     }
 
     //endregion
-
 
     //region Lifecycle APIs
 
@@ -277,8 +280,8 @@ public class CameraView {
         //if (mCameraPreview != null) mCameraPreview.onResume();
         if (checkPermissions(getAudio())) {
             // Update display orientation for current CameraEngine
-            mOrientationHelper.enable(getContext());
-            mCameraEngine.getAngles().setDisplayOffset(mOrientationHelper.getDisplayOffset());
+            mOrientationHelper.enable();
+            mCameraEngine.getAngles().setDisplayOffset(mOrientationHelper.getLastDisplayOffset());
             mCameraEngine.start();
         }
     }
@@ -300,8 +303,10 @@ public class CameraView {
         boolean needsCamera = true;
         boolean needsAudio = audio == Audio.ON || audio == Audio.MONO || audio == Audio.STEREO;
 
-        needsCamera = needsCamera && c.checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED;
-        needsAudio = needsAudio && c.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED;
+        needsCamera = needsCamera && c.checkSelfPermission(Manifest.permission.CAMERA)
+                != PackageManager.PERMISSION_GRANTED;
+        needsAudio = needsAudio && c.checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED;
 
         if (needsCamera || needsAudio) {
             requestPermissions(needsCamera, needsAudio);
@@ -318,14 +323,15 @@ public class CameraView {
         if (audio == Audio.ON || audio == Audio.MONO || audio == Audio.STEREO) {
             try {
                 PackageManager manager = getContext().getPackageManager();
-                PackageInfo info = manager.getPackageInfo(getContext().getPackageName(), PackageManager.GET_PERMISSIONS);
+                PackageInfo info = manager.getPackageInfo(getContext().getPackageName(),
+                        PackageManager.GET_PERMISSIONS);
                 for (String requestedPermission : info.requestedPermissions) {
                     if (requestedPermission.equals(Manifest.permission.RECORD_AUDIO)) {
                         return;
                     }
                 }
-                String message = LOG.e("Permission error:", "When audio is enabled (Audio.ON),",
-                        "the RECORD_AUDIO permission should be added to the app manifest file.");
+                String message = LOG.e("Permission error: when audio is enabled (Audio.ON)" +
+                        " the RECORD_AUDIO permission should be added to the app manifest file.");
                 throw new IllegalStateException(message);
             } catch (PackageManager.NameNotFoundException e) {
                 // Not possible.
@@ -987,9 +993,6 @@ public class CameraView {
      * This will trigger {@link CameraListener#onPictureTaken(PictureResult)} if a listener
      * was registered.
      *
-     * Note that if sessionType is {@link Mode#VIDEO}, this
-     * might fall back to {@link #takePictureSnapshot()} (that is, we might capture a preview frame).
-     *
      * @see #takePictureSnapshot()
      */
     public void takePicture() {
@@ -1478,7 +1481,8 @@ public class CameraView {
         }
 
         @Override
-        public void dispatchOnFocusStart(@Nullable final Gesture gesture, @NonNull final PointF point) {
+        public void dispatchOnFocusStart(@Nullable final Gesture gesture,
+                                         @NonNull final PointF point) {
             mLogger.i("dispatchOnFocusStart", gesture, point);
             mUiHandler.post(new Runnable() {
                 @Override
@@ -1498,7 +1502,8 @@ public class CameraView {
         }
 
         @Override
-        public void dispatchOnFocusEnd(@Nullable final Gesture gesture, final boolean success,
+        public void dispatchOnFocusEnd(@Nullable final Gesture gesture,
+                                       final boolean success,
                                        @NonNull final PointF point) {
             mLogger.i("dispatchOnFocusEnd", gesture, success, point);
             mUiHandler.post(new Runnable() {
@@ -1524,7 +1529,7 @@ public class CameraView {
         @Override
         public void onDeviceOrientationChanged(int deviceOrientation) {
             mLogger.i("onDeviceOrientationChanged", deviceOrientation);
-            int displayOffset = mOrientationHelper.getDisplayOffset();
+            int displayOffset = mOrientationHelper.getLastDisplayOffset();
             if (!mUseDeviceOrientation) {
                 // To fool the engine to return outputs in the VIEW reference system,
                 // The device orientation should be set to -displayOffset.
@@ -1542,6 +1547,19 @@ public class CameraView {
                     }
                 }
             });
+        }
+
+        @Override
+        public void onDisplayOffsetChanged(int displayOffset, boolean willRecreate) {
+            mLogger.i("onDisplayOffsetChanged", displayOffset, "recreate:", willRecreate);
+            if (isOpened() && !willRecreate) {
+                // Display offset changes when the device rotation lock is off and the activity
+                // is free to rotate. However, some changes will NOT recreate the activity, namely
+                // 180 degrees flips. In this case, we must restart the camera manually.
+                mLogger.w("onDisplayOffsetChanged", "restarting the camera.");
+                close();
+                open();
+            }
         }
 
         @Override
@@ -1574,7 +1592,8 @@ public class CameraView {
 
         @Override
         public void dispatchFrame(@NonNull final Frame frame) {
-            // The getTime() below might crash if developers incorrectly release frames asynchronously.
+            // The getTime() below might crash if developers incorrectly release
+            // frames asynchronously.
             mLogger.v("dispatchFrame:", frame.getTime(), "processors:", mFrameProcessors.size());
             if (mFrameProcessors.isEmpty()) {
                 // Mark as released. This instance will be reused.
@@ -1584,7 +1603,8 @@ public class CameraView {
                 mFrameProcessorsHandler.run(new Runnable() {
                     @Override
                     public void run() {
-                        mLogger.v("dispatchFrame: dispatching", frame.getTime(), "to processors.");
+                        mLogger.v("dispatchFrame: dispatching", frame.getTime(),
+                                "to processors.");
                         for (FrameProcessor processor : mFrameProcessors) {
                             try {
                                 processor.process(frame);
@@ -1640,6 +1660,4 @@ public class CameraView {
     }
 
     //endregion
-
-
 }

@@ -20,20 +20,30 @@ public class WhiteBalanceLock extends BaseLock {
 
     @Override
     protected boolean checkIsSupported(@NonNull ActionHolder holder) {
-        boolean isNotLegacy = readCharacteristic(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL, -1)
+        boolean isNotLegacy = readCharacteristic(
+                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL, -1)
                 != CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY;
         Integer awbMode = holder.getBuilder(this).get(CaptureRequest.CONTROL_AWB_MODE);
-        boolean result = isNotLegacy && awbMode != null && awbMode == CaptureRequest.CONTROL_AWB_MODE_AUTO;
+        boolean result = isNotLegacy
+                && awbMode != null
+                && awbMode == CaptureRequest.CONTROL_AWB_MODE_AUTO;
         LOG.i("checkIsSupported:", result);
         return result;
     }
 
     @Override
     protected boolean checkShouldSkip(@NonNull ActionHolder holder) {
-        Integer awbState = holder.getLastResult(this).get(CaptureResult.CONTROL_AWB_STATE);
-        boolean result = awbState != null && awbState == CaptureRequest.CONTROL_AWB_STATE_LOCKED;
-        LOG.i("checkShouldSkip:", result);
-        return result;
+        CaptureResult lastResult = holder.getLastResult(this);
+        if (lastResult != null) {
+            Integer awbState = lastResult.get(CaptureResult.CONTROL_AWB_STATE);
+            boolean result = awbState != null
+                    && awbState == CaptureRequest.CONTROL_AWB_STATE_LOCKED;
+            LOG.i("checkShouldSkip:", result);
+            return result;
+        } else {
+            LOG.i("checkShouldSkip: false - lastResult is null.");
+            return false;
+        }
     }
 
     @Override
@@ -43,7 +53,9 @@ public class WhiteBalanceLock extends BaseLock {
     }
 
     @Override
-    public void onCaptureCompleted(@NonNull ActionHolder holder, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
+    public void onCaptureCompleted(@NonNull ActionHolder holder,
+                                   @NonNull CaptureRequest request,
+                                   @NonNull TotalCaptureResult result) {
         super.onCaptureCompleted(holder, request, result);
         Integer awbState = result.get(CaptureResult.CONTROL_AWB_STATE);
         LOG.i("processCapture:", "awbState:", awbState);

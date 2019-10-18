@@ -40,12 +40,18 @@ public class FocusMeter extends BaseMeter {
 
     @Override
     protected boolean checkShouldSkip(@NonNull ActionHolder holder) {
-        Integer afState = holder.getLastResult(this).get(CaptureResult.CONTROL_AF_STATE);
-        boolean result = afState != null &&
-                (afState == CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED ||
-                        afState == CaptureResult.CONTROL_AF_STATE_PASSIVE_FOCUSED);
-        LOG.i("checkShouldSkip:", result);
-        return result;
+        CaptureResult lastResult = holder.getLastResult(this);
+        if (lastResult != null) {
+            Integer afState = lastResult.get(CaptureResult.CONTROL_AF_STATE);
+            boolean result = afState != null &&
+                    (afState == CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED ||
+                            afState == CaptureResult.CONTROL_AF_STATE_PASSIVE_FOCUSED);
+            LOG.i("checkShouldSkip:", result);
+            return result;
+        } else {
+            LOG.i("checkShouldSkip: false - lastResult is null.");
+            return false;
+        }
     }
 
     @Override
@@ -53,7 +59,8 @@ public class FocusMeter extends BaseMeter {
         LOG.i("onStarted:", "with areas:", areas);
         holder.getBuilder(this).set(CaptureRequest.CONTROL_AF_TRIGGER,
                 CaptureRequest.CONTROL_AF_TRIGGER_START);
-        int maxRegions = readCharacteristic(CameraCharacteristics.CONTROL_MAX_REGIONS_AF, 0);
+        int maxRegions = readCharacteristic(CameraCharacteristics.CONTROL_MAX_REGIONS_AF,
+                0);
         if (!areas.isEmpty() && maxRegions > 0) {
             int max = Math.min(maxRegions, areas.size());
             holder.getBuilder(this).set(CaptureRequest.CONTROL_AF_REGIONS,

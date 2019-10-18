@@ -44,7 +44,6 @@ import com.otaliastudios.cameraview.markers.MarkerParser;
 import com.otaliastudios.cameraview.overlay.OverlayLayout;
 import com.otaliastudios.cameraview.preview.CameraPreview;
 import com.otaliastudios.cameraview.preview.FilterCameraPreview;
-import com.otaliastudios.cameraview.preview.GlCameraPreview;
 import com.otaliastudios.cameraview.preview.SurfaceCameraPreview;
 import com.otaliastudios.cameraview.preview.TextureCameraPreview;
 import com.otaliastudios.cameraview.size.Size;
@@ -144,6 +143,310 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
         mMarkerLayout.onMarker(MarkerLayout.TYPE_AUTOFOCUS, autoFocusMarker);
     }
 
+    /**
+     * Instantiates the camera preview.
+     *
+     * @param preview current preview value
+     * @param context a context
+     * @param container the container
+     * @return the preview
+     */
+    @NonNull
+    protected CameraPreview instantiatePreview(@NonNull Preview preview,
+                                               @NonNull Context context,
+                                               @NonNull ViewGroup container) {
+        switch (preview) {
+            case SURFACE:
+                return new SurfaceCameraPreview(context, container);
+            case TEXTURE: {
+                if (isHardwareAccelerated()) {
+                    // TextureView is not supported without hardware acceleration.
+                    return new TextureCameraPreview(context, container);
+                }
+            }
+            case GL_SURFACE: default: {
+//                mPreview = Preview.GL_SURFACE;
+//                return new GlCameraPreview(context, container);
+                return new SurfaceCameraPreview(context, container);
+            }
+        }
+    }
+    /**
+     * Controls the preview engine. Should only be called
+     * if this CameraView was never added to any window
+     * (like if you created it programmatically).
+     * Otherwise, it has no effect.
+     *
+     * @see Preview#SURFACE
+     * @see Preview#TEXTURE
+     * @see Preview#GL_SURFACE
+     *
+     * @param preview desired preview engine
+     */
+    public void setPreview(@NonNull Preview preview) {
+        boolean isNew = preview != mPreview;
+        if (isNew) {
+            mPreview = preview;
+            boolean isAttachedToWindow = getWindowToken() != null;
+            if (!isAttachedToWindow && mCameraPreview != null) {
+                // Null the preview: will create another when re-attaching.
+                mCameraPreview.onDestroy();
+                mCameraPreview = null;
+            }
+        }
+    }
+
+    /**
+     * Returns the current preview control.
+     *
+     * @see #setPreview(Preview)
+     * @return the current preview control
+     */
+    @NonNull
+    public Preview getPreview() {
+        return mPreview;
+    }
+
+    /**
+     * Controls the grids to be drawn over the current layout.
+     *
+     * @see Grid#OFF
+     * @see Grid#DRAW_3X3
+     * @see Grid#DRAW_4X4
+     * @see Grid#DRAW_PHI
+     *
+     * @param gridMode desired grid mode
+     */
+    public void setGrid(@NonNull Grid gridMode) {
+        mGridLinesLayout.setGridMode(gridMode);
+    }
+
+    /**
+     * Gets the current grid mode.
+     * @return the current grid mode
+     */
+    @NonNull
+    public Grid getGrid() {
+        return mGridLinesLayout.getGridMode();
+    }
+
+    /**
+     * Controls the color of the grid lines that will be drawn
+     * over the current layout.
+     *
+     * @param color a resolved color
+     */
+    public void setGridColor(@ColorInt int color) {
+        mGridLinesLayout.setGridColor(color);
+    }
+
+    /**
+     * Returns the current grid color.
+     * @return the current grid color
+     */
+    public int getGridColor() {
+        return mGridLinesLayout.getGridColor();
+    }
+
+    /**
+     * Sets the lifecycle owner for this view. This means you don't need
+     * to call {@link #open()}, {@link #close()} or {@link #destroy()} at all.
+     *
+     * @param owner the owner activity or fragment
+     */
+    public void setLifecycleOwner(@NonNull LifecycleOwner owner) {
+        if (mLifecycle != null) mLifecycle.removeObserver(this);
+        mLifecycle = owner.getLifecycle();
+        mLifecycle.addObserver(this);
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        //if (mInEditor) return;
+        if (mCameraPreview == null) {
+            // isHardwareAccelerated will return the real value only after we are
+            // attached. That's why we instantiate the preview here.
+            doInstantiatePreview();
+        }
+        //mOrientationHelper.enable(getContext());
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        //if (!mInEditor) mOrientationHelper.disable();
+        super.onDetachedFromWindow();
+    }
+
+    /**
+     * Preview is instantiated {@link #onAttachedToWindow()}, because
+     * we want to know if we're hardware accelerated or not.
+     * However, in tests, we might want to create the preview right after constructor.
+     */
+    @VisibleForTesting
+    void doInstantiatePreview() {
+        LOG.w("doInstantiateEngine:", "instantiating. preview:", mPreview);
+        mCameraPreview = instantiatePreview(mPreview, getContext(), this);
+        LOG.w("doInstantiateEngine:", "instantiated. preview:",
+                mCameraPreview.getClass().getSimpleName());
+        mCameraEngine.setPreview(mCameraPreview);
+        if (mPendingFilter != null) {
+            setFilter(mPendingFilter);
+            mPendingFilter = null;
+        }
+    }
+
+
+    @OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
+    public void open() {
+        if (mInEditor) return;
+        if (mCameraPreview != null) mCameraPreview.onResume();
+//        if (checkPermissions(getAudio())) {
+//            // Update display orientation for current CameraEngine
+//            mOrientationHelper.enable(getContext());
+//            mCameraEngine.getAngles().setDisplayOffset(mOrientationHelper.getDisplayOffset());
+//            mCameraEngine.start();
+//        }
+    }
+
+    @OnLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+    public void close() {
+        if (mInEditor) return;
+        //mCameraEngine.stop();
+        if (mCameraPreview != null) mCameraPreview.onPause();
+    }
+
+    /**
+     * Destroys this instance, releasing immediately
+     * the camera resource.
+     */
+    @OnLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+    public void destroy() {
+        if (mInEditor) return;
+        //clearCameraListeners();
+        //clearFrameProcessors();
+        //mCameraEngine.destroy();
+        if (mCameraPreview != null) mCameraPreview.onDestroy();
+    }
+
+    //region Overlays
+
+    @Override
+    public LayoutParams generateLayoutParams(AttributeSet attributeSet) {
+        if (!mInEditor && mOverlayLayout.isOverlay(attributeSet)) {
+            return mOverlayLayout.generateLayoutParams(attributeSet);
+        }
+        return super.generateLayoutParams(attributeSet);
+    }
+
+    @Override
+    public void addView(View child, int index, ViewGroup.LayoutParams params) {
+        if (!mInEditor && mOverlayLayout.isOverlay(params)) {
+            mOverlayLayout.addView(child, params);
+        } else {
+            super.addView(child, index, params);
+        }
+    }
+
+    @Override
+    public void removeView(View view) {
+        ViewGroup.LayoutParams params = view.getLayoutParams();
+        if (!mInEditor && params != null && mOverlayLayout.isOverlay(params)) {
+            mOverlayLayout.removeView(view);
+        } else {
+            super.removeView(view);
+        }
+    }
+
+    //endregion
+
+    //region Filters
+
+    /**
+     * Applies a real-time filter to the camera preview, if it supports it.
+     * The only preview type that does so is currently {@link Preview#GL_SURFACE}.
+     *
+     * The filter will be applied to any picture snapshot taken with
+     * {@link #takePictureSnapshot()} and any video snapshot taken with
+     * {@link #takeVideoSnapshot(File)}.
+     *
+     * Use {@link NoFilter} to clear the existing filter,
+     * and take a look at the {@link Filters} class for commonly used filters.
+     *
+     * This method will throw an exception if the current preview does not support real-time
+     * filters. Make sure you use {@link Preview#GL_SURFACE} (the default).
+     *
+     * @see Filters
+     * @param filter a new filter
+     */
+    public void setFilter(@NonNull Filter filter) {
+        if (mCameraPreview == null) {
+            mPendingFilter = filter;
+        } else {
+            boolean isNoFilter = filter instanceof NoFilter;
+            boolean isFilterPreview = mCameraPreview instanceof FilterCameraPreview;
+            // If not experimental, we only allow NoFilter (called on creation).
+            if (!isNoFilter && !mExperimental) {
+                throw new RuntimeException("Filters are an experimental features and" +
+                        " need the experimental flag set.");
+            }
+            // If not a filter preview, we only allow NoFilter (called on creation).
+            if (!isNoFilter && !isFilterPreview) {
+                throw new RuntimeException("Filters are only supported by the GL_SURFACE preview." +
+                        " Current preview:" + mPreview);
+            }
+            // If we have a filter preview, apply.
+            if (isFilterPreview) {
+                ((FilterCameraPreview) mCameraPreview).setFilter(filter);
+            }
+            // No-op: !isFilterPreview && isNoPreview
+        }
+    }
+
+    /**
+     * Returns the current real-time filter applied to the camera preview.
+     *
+     * This method will throw an exception if the current preview does not support real-time
+     * filters. Make sure you use {@link Preview#GL_SURFACE} (the default).
+     *
+     * @see #setFilter(Filter)
+     * @return the current filter
+     */
+    @NonNull
+    public Filter getFilter() {
+        if (!mExperimental) {
+            throw new RuntimeException("Filters are an experimental features and need " +
+                    "the experimental flag set.");
+        } else if (mCameraPreview == null) {
+            return mPendingFilter;
+        } else if (mCameraPreview instanceof FilterCameraPreview) {
+            return ((FilterCameraPreview) mCameraPreview).getCurrentFilter();
+        } else {
+            throw new RuntimeException("Filters are only supported by the GL_SURFACE preview. " +
+                    "Current:" + mPreview);
+        }
+
+    }
+
+    //end region overlay
+
+    /**
+     * Starts a 3A touch metering process at the given coordinates, with respect
+     * to the view width and height.
+     *
+     * @param x should be between 0 and getWidth()
+     * @param y should be between 0 and getHeight()
+     */
+    public void startAutoFocus(float x, float y) {
+        if (x < 0 || x > getWidth()) {
+            throw new IllegalArgumentException("x should be >= 0 and <= getWidth()");
+        }
+        if (y < 0 || y > getHeight()) {
+            throw new IllegalArgumentException("y should be >= 0 and <= getHeight()");
+        }
+        mCameraEngine.startAutoFocus(null, new PointF(x, y));
+    }
+
     //region Measuring behavior
 
     private String ms(int mode) {
@@ -209,13 +512,15 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
             if (heightMode == AT_MOST && lp.height == MATCH_PARENT) heightMode = EXACTLY;
         }
 
-        LOG.i("onMeasure:", "requested dimensions are", "(" + widthValue + "[" + ms(widthMode) + "]x" +
-                heightValue + "[" + ms(heightMode) + "])");
-        LOG.i("onMeasure:",  "previewSize is", "(" + previewWidth + "x" + previewHeight + ")");
+        LOG.i("onMeasure:", "requested dimensions are (" + widthValue + "[" + ms(widthMode)
+                + "]x" + heightValue + "[" + ms(heightMode) + "])");
+        LOG.i("onMeasure:",  "previewSize is", "(" + previewWidth + "x"
+                + previewHeight + ")");
 
-        // (1) If we have fixed dimensions (either 300dp or MATCH_PARENT), there's nothing we should do,
-        // other than respect it. The preview will eventually be cropped at the sides (by PreviewImpl scaling)
-        // except the case in which these fixed dimensions manage to fit exactly the preview aspect ratio.
+        // (1) If we have fixed dimensions (either 300dp or MATCH_PARENT), there's nothing we
+        // should do, other than respect it. The preview will eventually be cropped at the sides
+        // (by Preview scaling) except the case in which these fixed dimensions manage to fit
+        // exactly the preview aspect ratio.
         if (widthMode == EXACTLY && heightMode == EXACTLY) {
             LOG.i("onMeasure:", "both are MATCH_PARENT or fixed value. We adapt.",
                     "This means CROP_CENTER.", "(" + widthValue + "x" + heightValue + ")");
@@ -235,8 +540,8 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
             return;
         }
 
-        // It's sure now that at least one dimension can be determined (either because EXACTLY or AT_MOST).
-        // This starts to seem a pleasant situation.
+        // It's sure now that at least one dimension can be determined (either because EXACTLY
+        // or AT_MOST). This starts to seem a pleasant situation.
 
         // (3) If one of the dimension is completely free (e.g. in a scrollable container),
         // take the other and fit the ratio.
@@ -252,16 +557,17 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
                 width = widthValue;
                 height = Math.round(width * ratio);
             }
-            LOG.i("onMeasure:", "one dimension was free, we adapted it to fit the aspect ratio.",
+            LOG.i("onMeasure:", "one dimension was free, we adapted it to fit the ratio.",
                     "(" + width + "x" + height + ")");
             super.onMeasure(MeasureSpec.makeMeasureSpec(width, EXACTLY),
                     MeasureSpec.makeMeasureSpec(height, EXACTLY));
             return;
         }
 
-        // (4) At this point both dimensions are either AT_MOST-AT_MOST, EXACTLY-AT_MOST or AT_MOST-EXACTLY.
-        // Let's manage this sanely. If only one is EXACTLY, we can TRY to fit the aspect ratio,
-        // but it is not guaranteed to succeed. It depends on the AT_MOST value of the other dimensions.
+        // (4) At this point both dimensions are either AT_MOST-AT_MOST, EXACTLY-AT_MOST or
+        // AT_MOST-EXACTLY. Let's manage this sanely. If only one is EXACTLY, we can TRY to fit
+        // the aspect ratio, but it is not guaranteed to succeed. It depends on the AT_MOST
+        // value of the other dimensions.
         if (widthMode == EXACTLY || heightMode == EXACTLY) {
             boolean freeWidth = widthMode == AT_MOST;
             int height, width;
@@ -327,18 +633,18 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
                     mPinchGestureFinder.setActive(mGestureMap.get(Gesture.PINCH) != none);
                     break;
                 case TAP:
-                // case DOUBLE_TAP:
+                    // case DOUBLE_TAP:
                 case LONG_TAP:
                     mTapGestureFinder.setActive(
                             mGestureMap.get(Gesture.TAP) != none ||
-                            // mGestureMap.get(Gesture.DOUBLE_TAP) != none ||
-                            mGestureMap.get(Gesture.LONG_TAP) != none);
+                                    // mGestureMap.get(Gesture.DOUBLE_TAP) != none ||
+                                    mGestureMap.get(Gesture.LONG_TAP) != none);
                     break;
                 case SCROLL_HORIZONTAL:
                 case SCROLL_VERTICAL:
                     mScrollGestureFinder.setActive(
                             mGestureMap.get(Gesture.SCROLL_HORIZONTAL) != none ||
-                            mGestureMap.get(Gesture.SCROLL_VERTICAL) != none);
+                                    mGestureMap.get(Gesture.SCROLL_VERTICAL) != none);
                     break;
             }
             return true;
@@ -459,278 +765,4 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
     }
 
     //endregion
-
-    //region Overlays
-
-    @Override
-    public LayoutParams generateLayoutParams(AttributeSet attributeSet) {
-        if (!mInEditor && mOverlayLayout.isOverlay(attributeSet)) {
-            return mOverlayLayout.generateLayoutParams(attributeSet);
-        }
-        return super.generateLayoutParams(attributeSet);
-    }
-
-    // We don't support removeView on overlays for now.
-    @Override
-    public void addView(View child, int index, ViewGroup.LayoutParams params) {
-        if (!mInEditor && mOverlayLayout.isOverlay(params)) {
-            mOverlayLayout.addView(child, params);
-        } else {
-            super.addView(child, index, params);
-        }
-    }
-
-    //endregion
-
-    /**
-     * Instantiates the camera preview.
-     *
-     * @param preview current preview value
-     * @param context a context
-     * @param container the container
-     * @return the preview
-     */
-    @NonNull
-    protected CameraPreview instantiatePreview(@NonNull Preview preview, @NonNull Context context, @NonNull ViewGroup container) {
-        switch (preview) {
-            case SURFACE:
-                return new SurfaceCameraPreview(context, container);
-            case TEXTURE: {
-                if (isHardwareAccelerated()) {
-                    // TextureView is not supported without hardware acceleration.
-                    return new TextureCameraPreview(context, container);
-                }
-            }
-            case GL_SURFACE: default: {
-                mPreview = Preview.GL_SURFACE;
-                return new GlCameraPreview(context, container);
-            }
-        }
-    }
-
-    /**
-     * Controls the preview engine. Should only be called
-     * if this CameraView was never added to any window
-     * (like if you created it programmatically).
-     * Otherwise, it has no effect.
-     *
-     * @see Preview#SURFACE
-     * @see Preview#TEXTURE
-     * @see Preview#GL_SURFACE
-     *
-     * @param preview desired preview engine
-     */
-    public void setPreview(@NonNull Preview preview) {
-        boolean isNew = preview != mPreview;
-        if (isNew) {
-            mPreview = preview;
-            boolean isAttachedToWindow = getWindowToken() != null;
-            if (!isAttachedToWindow && mCameraPreview != null) {
-                // Null the preview: will create another when re-attaching.
-                mCameraPreview.onDestroy();
-                mCameraPreview = null;
-            }
-        }
-    }
-
-    /**
-     * Returns the current preview control.
-     *
-     * @see #setPreview(Preview)
-     * @return the current preview control
-     */
-    @NonNull
-    public Preview getPreview() {
-        return mPreview;
-    }
-
-    /**
-     * Controls the grids to be drawn over the current layout.
-     *
-     * @see Grid#OFF
-     * @see Grid#DRAW_3X3
-     * @see Grid#DRAW_4X4
-     * @see Grid#DRAW_PHI
-     *
-     * @param gridMode desired grid mode
-     */
-    public void setGrid(@NonNull Grid gridMode) {
-        mGridLinesLayout.setGridMode(gridMode);
-    }
-
-    /**
-     * Gets the current grid mode.
-     * @return the current grid mode
-     */
-    @NonNull
-    public Grid getGrid() {
-        return mGridLinesLayout.getGridMode();
-    }
-
-    /**
-     * Controls the color of the grid lines that will be drawn
-     * over the current layout.
-     *
-     * @param color a resolved color
-     */
-    public void setGridColor(@ColorInt int color) {
-        mGridLinesLayout.setGridColor(color);
-    }
-
-    /**
-     * Returns the current grid color.
-     * @return the current grid color
-     */
-    public int getGridColor() {
-        return mGridLinesLayout.getGridColor();
-    }
-
-    /**
-     * Starts a 3A touch metering process at the given coordinates, with respect
-     * to the view width and height.
-     *
-     * @param x should be between 0 and getWidth()
-     * @param y should be between 0 and getHeight()
-     */
-    public void startAutoFocus(float x, float y) {
-        if (x < 0 || x > getWidth()) throw new IllegalArgumentException("x should be >= 0 and <= getWidth()");
-        if (y < 0 || y > getHeight()) throw new IllegalArgumentException("y should be >= 0 and <= getHeight()");
-        mCameraEngine.startAutoFocus(null, new PointF(x, y));
-    }
-
-    /**
-     * Sets the lifecycle owner for this view. This means you don't need
-     * to call {@link #open()}, {@link #close()} or {@link #destroy()} at all.
-     *
-     * @param owner the owner activity or fragment
-     */
-    public void setLifecycleOwner(@NonNull LifecycleOwner owner) {
-        if (mLifecycle != null) mLifecycle.removeObserver(this);
-        mLifecycle = owner.getLifecycle();
-        mLifecycle.addObserver(this);
-    }
-
-    @Override
-    protected void onAttachedToWindow() {
-        super.onAttachedToWindow();
-        //if (mInEditor) return;
-        if (mCameraPreview == null) {
-            // isHardwareAccelerated will return the real value only after we are
-            // attached. That's why we instantiate the preview here.
-            doInstantiatePreview();
-        }
-        //mOrientationHelper.enable(getContext());
-    }
-
-    @Override
-    protected void onDetachedFromWindow() {
-        //if (!mInEditor) mOrientationHelper.disable();
-        super.onDetachedFromWindow();
-    }
-
-    /**
-     * Preview is instantiated {@link #onAttachedToWindow()}, because
-     * we want to know if we're hardware accelerated or not.
-     * However, in tests, we might want to create the preview right after constructor.
-     */
-    @VisibleForTesting
-    void doInstantiatePreview() {
-        LOG.w("doInstantiateEngine:", "instantiating. preview:", mPreview);
-        mCameraPreview = instantiatePreview(mPreview, getContext(), this);
-        LOG.w("doInstantiateEngine:", "instantiated. preview:", mCameraPreview.getClass().getSimpleName());
-        mCameraEngine.setPreview(mCameraPreview);
-        if (mPendingFilter != null) {
-            setFilter(mPendingFilter);
-            mPendingFilter = null;
-        }
-    }
-
-    @OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
-    public void open() {
-        if (mInEditor) return;
-        if (mCameraPreview != null) mCameraPreview.onResume();
-//        if (checkPermissions(getAudio())) {
-//            // Update display orientation for current CameraEngine
-//            mOrientationHelper.enable(getContext());
-//            mCameraEngine.getAngles().setDisplayOffset(mOrientationHelper.getDisplayOffset());
-//            mCameraEngine.start();
-//        }
-    }
-
-    @OnLifecycleEvent(Lifecycle.Event.ON_PAUSE)
-    public void close() {
-        if (mInEditor) return;
-        //mCameraEngine.stop();
-        if (mCameraPreview != null) mCameraPreview.onPause();
-    }
-
-    /**
-     * Destroys this instance, releasing immediately
-     * the camera resource.
-     */
-    @OnLifecycleEvent(Lifecycle.Event.ON_DESTROY)
-    public void destroy() {
-        if (mInEditor) return;
-        //clearCameraListeners();
-        //clearFrameProcessors();
-        //mCameraEngine.destroy();
-        if (mCameraPreview != null) mCameraPreview.onDestroy();
-    }
-
-    //region Filters
-
-    /**
-     * Applies a real-time filter to the camera preview, if it supports it.
-     * The only preview type that does so is currently {@link Preview#GL_SURFACE}.
-     *
-     * The filter will be applied to any picture snapshot taken with
-     * {@link #takePictureSnapshot()} and any video snapshot taken with
-     * {@link #takeVideoSnapshot(File)}.
-     *
-     * Use {@link NoFilter} to clear the existing filter,
-     * and take a look at the {@link Filters} class for commonly used filters.
-     *
-     * This method will throw an exception if the current preview does not support real-time filters.
-     * Make sure you use {@link Preview#GL_SURFACE} (the default).
-     *
-     * @see Filters
-     * @param filter a new filter
-     */
-    public void setFilter(@NonNull Filter filter) {
-        if (mCameraPreview == null) {
-            mPendingFilter = filter;
-        } else if (!(filter instanceof NoFilter) && !mExperimental) {
-            throw new RuntimeException("Filters are an experimental features and need the experimental flag set.");
-        } else if (mCameraPreview instanceof FilterCameraPreview) {
-            ((FilterCameraPreview) mCameraPreview).setFilter(filter);
-        } else {
-            throw new RuntimeException("Filters are only supported by the GL_SURFACE preview. Current:" + mPreview);
-        }
-    }
-
-    /**
-     * Returns the current real-time filter applied to the camera preview.
-     *
-     * This method will throw an exception if the current preview does not support real-time filters.
-     * Make sure you use {@link Preview#GL_SURFACE} (the default).
-     *
-     * @see #setFilter(Filter)
-     * @return the current filter
-     */
-    @NonNull
-    public Filter getFilter() {
-        if (!mExperimental) {
-            throw new RuntimeException("Filters are an experimental features and need the experimental flag set.");
-        } else if (mCameraPreview == null) {
-            return mPendingFilter;
-        } else if (mCameraPreview instanceof FilterCameraPreview) {
-            return ((FilterCameraPreview) mCameraPreview).getCurrentFilter();
-        } else {
-            throw new RuntimeException("Filters are only supported by the GL_SURFACE preview. Current:" + mPreview);
-        }
-
-    }
-
-    //endregion
-
 }

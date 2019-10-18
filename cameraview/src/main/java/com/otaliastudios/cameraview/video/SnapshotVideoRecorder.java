@@ -51,6 +51,7 @@ public class SnapshotVideoRecorder extends VideoRecorder implements RendererFram
     private static final int STATE_NOT_RECORDING = 1;
 
     private MediaEncoderEngine mEncoderEngine;
+    private final Object mEncoderEngineLock = new Object();
     private GlCameraPreview mPreview;
 
     private int mCurrentState = STATE_NOT_RECORDING;
@@ -79,16 +80,24 @@ public class SnapshotVideoRecorder extends VideoRecorder implements RendererFram
     protected void onStart() {
         mPreview.addRendererFrameCallback(this);
         mDesiredState = STATE_RECORDING;
+        dispatchVideoRecordingStart();
     }
 
+    // Can be called different threads
     @Override
     protected void onStop(boolean isCameraShutdown) {
         if (isCameraShutdown) {
-            // The renderer callback might never be called. From my tests, it's not.
+            // The renderer callback might never be called. From my tests, it's not,
+            // so we can't wait for that callback to stop the encoder engine.
             LOG.i("Stopping the encoder engine from isCameraShutdown.");
             mDesiredState = STATE_NOT_RECORDING;
             mCurrentState = STATE_NOT_RECORDING;
-            mEncoderEngine.stop();
+            synchronized (mEncoderEngineLock) {
+                if (mEncoderEngine != null) {
+                    mEncoderEngine.stop();
+                    mEncoderEngine = null;
+                }
+            }
         } else {
             mDesiredState = STATE_NOT_RECORDING;
         }
@@ -103,24 +112,30 @@ public class SnapshotVideoRecorder extends VideoRecorder implements RendererFram
         }
     }
 
+    @RendererThread
     @Override
     public void onRendererFilterChanged(@NonNull Filter filter) {
         mCurrentFilter = filter.copy();
-        if (mEncoderEngine != null) {
-            mCurrentFilter.setSize(mResult.size.getWidth(), mResult.size.getHeight());
-            mEncoderEngine.notify(TextureMediaEncoder.FILTER_EVENT, mCurrentFilter);
+        mCurrentFilter.setSize(mResult.size.getWidth(), mResult.size.getHeight());
+        synchronized (mEncoderEngineLock) {
+            if (mEncoderEngine != null) {
+                mEncoderEngine.notify(TextureMediaEncoder.FILTER_EVENT, mCurrentFilter);
+            }
         }
     }
 
     @RendererThread
     @Override
-    public void onRendererFrame(@NonNull SurfaceTexture surfaceTexture, float scaleX, float scaleY) {
+    public void onRendererFrame(@NonNull SurfaceTexture surfaceTexture,
+                                float scaleX,
+                                float scaleY) {
         if (mCurrentState == STATE_NOT_RECORDING && mDesiredState == STATE_RECORDING) {
             LOG.i("Starting the encoder engine.");
 
             // Set default options
             if (mResult.videoFrameRate <= 0) mResult.videoFrameRate = DEFAULT_VIDEO_FRAMERATE;
-            if (mResult.videoBitRate <= 0) mResult.videoBitRate = estimateVideoBitRate(mResult.size, mResult.videoFrameRate);
+            if (mResult.videoBitRate <= 0) mResult.videoBitRate
+                    = estimateVideoBitRate(mResult.size, mResult.videoFrameRate);
             if (mResult.audioBitRate <= 0) mResult.audioBitRate = DEFAULT_AUDIO_BITRATE;
 
             // Define mime types
@@ -133,11 +148,34 @@ public class SnapshotVideoRecorder extends VideoRecorder implements RendererFram
             String audioType = "audio/mp4a-latm";
 
             // Check the availability of values
-            DeviceEncoders deviceEncoders = new DeviceEncoders(videoType, audioType, DeviceEncoders.MODE_PREFER_HARDWARE);
-            mResult.size = deviceEncoders.getSupportedVideoSize(mResult.size);
-            mResult.videoBitRate = deviceEncoders.getSupportedVideoBitRate(mResult.videoBitRate);
-            mResult.audioBitRate = deviceEncoders.getSupportedAudioBitRate(mResult.audioBitRate);
-            mResult.videoFrameRate = deviceEncoders.getSupportedVideoFrameRate(mResult.size, mResult.videoFrameRate);
+            Size newVideoSize = null;
+            int newVideoBitRate = 0;
+            int newAudioBitRate = 0;
+            int newVideoFrameRate = 0;
+            int videoEncoderOffset = 0;
+            int audioEncoderOffset = 0;
+            boolean encodersFound = false;
+            DeviceEncoders deviceEncoders = null;
+            while (!encodersFound) {
+                deviceEncoders = new DeviceEncoders(DeviceEncoders.MODE_PREFER_HARDWARE,
+                        videoType, audioType, videoEncoderOffset, audioEncoderOffset);
+                try {
+                    newVideoSize = deviceEncoders.getSupportedVideoSize(mResult.size);
+                    newVideoBitRate = deviceEncoders.getSupportedVideoBitRate(mResult.videoBitRate);
+                    newAudioBitRate = deviceEncoders.getSupportedAudioBitRate(mResult.audioBitRate);
+                    newVideoFrameRate = deviceEncoders.getSupportedVideoFrameRate(newVideoSize,
+                            mResult.videoFrameRate);
+                    encodersFound = true;
+                } catch (DeviceEncoders.VideoException videoException) {
+                    videoEncoderOffset++;
+                } catch (DeviceEncoders.AudioException audioException) {
+                    audioEncoderOffset++;
+                }
+            }
+            mResult.size = newVideoSize;
+            mResult.videoBitRate = newVideoBitRate;
+            mResult.audioBitRate = newAudioBitRate;
+            mResult.videoFrameRate = newVideoFrameRate;
 
             // Video
             TextureConfig videoConfig = new TextureConfig();
@@ -168,7 +206,8 @@ public class SnapshotVideoRecorder extends VideoRecorder implements RendererFram
 
             // Audio
             AudioMediaEncoder audioEncoder = null;
-            if (mResult.audio == Audio.ON || mResult.audio == Audio.MONO || mResult.audio == Audio.STEREO) {
+            if (mResult.audio == Audio.ON || mResult.audio == Audio.MONO
+                    || mResult.audio == Audio.STEREO) {
                 AudioConfig audioConfig = new AudioConfig();
                 audioConfig.bitRate = mResult.audioBitRate;
                 if (mResult.audio == Audio.MONO) audioConfig.channels = 1;
@@ -178,40 +217,53 @@ public class SnapshotVideoRecorder extends VideoRecorder implements RendererFram
             }
 
             // Engine
-            mEncoderEngine = new MediaEncoderEngine(mResult.file,
-                    videoEncoder,
-                    audioEncoder,
-                    mResult.maxDuration,
-                    mResult.maxSize,
-                    SnapshotVideoRecorder.this);
-            mEncoderEngine.notify(TextureMediaEncoder.FILTER_EVENT, mCurrentFilter);
-            mEncoderEngine.start();
+            synchronized (mEncoderEngineLock) {
+                mEncoderEngine = new MediaEncoderEngine(mResult.file,
+                        videoEncoder,
+                        audioEncoder,
+                        mResult.maxDuration,
+                        mResult.maxSize,
+                        SnapshotVideoRecorder.this);
+                mEncoderEngine.notify(TextureMediaEncoder.FILTER_EVENT, mCurrentFilter);
+                mEncoderEngine.start();
+            }
             mCurrentState = STATE_RECORDING;
         }
 
         if (mCurrentState == STATE_RECORDING) {
             LOG.v("dispatching frame.");
-            TextureMediaEncoder textureEncoder = (TextureMediaEncoder) mEncoderEngine.getVideoEncoder();
+            TextureMediaEncoder textureEncoder
+                    = (TextureMediaEncoder) mEncoderEngine.getVideoEncoder();
             TextureMediaEncoder.Frame frame = textureEncoder.acquireFrame();
             frame.timestampNanos = surfaceTexture.getTimestamp();
-            frame.timestampMillis = System.currentTimeMillis(); // NOTE: this is an approximation but it seems to work.
+            // NOTE: this is an approximation but it seems to work:
+            frame.timestampMillis = System.currentTimeMillis();
             surfaceTexture.getTransformMatrix(frame.transform);
-            if (mEncoderEngine != null) { // Can happen on teardown. At least it used to.
-                mEncoderEngine.notify(TextureMediaEncoder.FRAME_EVENT, frame);
+            synchronized (mEncoderEngineLock) {
+                if (mEncoderEngine != null) { // Can be null on teardown.
+                    mEncoderEngine.notify(TextureMediaEncoder.FRAME_EVENT, frame);
+                }
             }
         }
 
         if (mCurrentState == STATE_RECORDING && mDesiredState == STATE_NOT_RECORDING) {
             LOG.i("Stopping the encoder engine.");
             mCurrentState = STATE_NOT_RECORDING;
-            mEncoderEngine.stop();
+            synchronized (mEncoderEngineLock) {
+                if (mEncoderEngine != null) {
+                    mEncoderEngine.stop();
+                    mEncoderEngine = null;
+                }
+            }
         }
 
     }
 
     @Override
     public void onEncodingStart() {
-        dispatchVideoRecordingStart();
+        // This would be the most correct place to call dispatchVideoRecordingStart. However,
+        // after this we'll post the call on the UI thread which can take some time. To compensate
+        // this, we call dispatchVideoRecordingStart() a bit earlier in this class (onStart()).
     }
 
     @Override
@@ -248,7 +300,9 @@ public class SnapshotVideoRecorder extends VideoRecorder implements RendererFram
             mOverlayDrawer.release();
             mOverlayDrawer = null;
         }
-        mEncoderEngine = null;
+        synchronized (mEncoderEngineLock) {
+            mEncoderEngine = null;
+        }
         dispatchResult();
     }
 }

@@ -22,7 +22,7 @@ CameraView is a well documented, high-level library that makes capturing picture
 addressing most of the common issues and needs, and still leaving you with flexibility where needed.
 
 ```groovy
-api 'com.otaliastudios:cameraview:2.2.0'
+api 'com.otaliastudios:cameraview:2.3.1'
 ```
 
 - Fast & reliable
@@ -54,7 +54,7 @@ If you like the project, make profit from it, or simply want to thank back, plea
 [donating](https://natario1.github.io/CameraView/extra/donate) now! You can either make a one time
 donation or become a sponsor, in which case your company logo will immediately show up below.
 
-CameraView is trusted and supported by [ShareChat](https://sharechat.com/), a social media app with over 14 million daily active users. 
+CameraView is trusted and supported by [ShareChat](https://sharechat.com/), a social media app with over 100 million downloads. 
 
 <p align="center">
   <img src="docs/static/sharechat.png" width="100%">

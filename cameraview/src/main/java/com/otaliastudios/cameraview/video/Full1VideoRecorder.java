@@ -1,6 +1,7 @@
 package com.otaliastudios.cameraview.video;
 
 import android.hardware.Camera;
+import android.media.CamcorderProfile;
 import android.media.MediaRecorder;
 import android.view.SurfaceView;
 
@@ -35,20 +36,24 @@ public class Full1VideoRecorder extends FullVideoRecorder {
     }
 
     @Override
-    protected boolean onPrepareMediaRecorder(@NonNull VideoResult.Stub stub, @NonNull MediaRecorder mediaRecorder) {
+    protected void applyVideoSource(@NonNull VideoResult.Stub stub,
+                                    @NonNull MediaRecorder mediaRecorder) {
         mediaRecorder.setCamera(mCamera);
         mediaRecorder.setVideoSource(MediaRecorder.VideoSource.CAMERA);
+    }
 
+    @NonNull
+    @Override
+    protected CamcorderProfile getCamcorderProfile(@NonNull VideoResult.Stub stub) {
         // Get a profile of quality compatible with the chosen size.
         Size size = stub.rotation % 180 != 0 ? stub.size.flip() : stub.size;
-        mProfile = CamcorderProfiles.get(mCameraId, size);
-        return super.onPrepareMediaRecorder(stub, mediaRecorder);
+        return CamcorderProfiles.get(mCameraId, size);
     }
 
     @Override
-    protected void dispatchResult() {
+    protected void onDispatchResult() {
         // Restore frame processing.
         mCamera.setPreviewCallbackWithBuffer(mEngine);
-        super.dispatchResult();
+        super.onDispatchResult();
     }
 }

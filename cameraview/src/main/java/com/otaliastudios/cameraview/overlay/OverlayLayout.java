@@ -127,7 +127,7 @@ public class OverlayLayout extends FrameLayout implements Overlay {
                     // to apply some scale (typically > 1).
                     float widthScale = canvas.getWidth() / (float) getWidth();
                     float heightScale = canvas.getHeight() / (float) getHeight();
-                    LOG.i("draw",
+                    LOG.v("draw",
                             "target:", target,
                             "canvas:", canvas.getWidth() + "x" + canvas.getHeight(),
                             "view:", getWidth() + "x" + getHeight(),
@@ -183,9 +183,12 @@ public class OverlayLayout extends FrameLayout implements Overlay {
             super(context, attrs);
             TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.CameraView_Layout);
             try {
-                drawOnPreview = a.getBoolean(R.styleable.CameraView_Layout_layout_drawOnPreview, false);
-                drawOnPictureSnapshot = a.getBoolean(R.styleable.CameraView_Layout_layout_drawOnPictureSnapshot, false);
-                drawOnVideoSnapshot = a.getBoolean(R.styleable.CameraView_Layout_layout_drawOnVideoSnapshot, false);
+                drawOnPreview = a.getBoolean(R.styleable.CameraView_Layout_layout_drawOnPreview,
+                        false);
+                drawOnPictureSnapshot = a.getBoolean(
+                        R.styleable.CameraView_Layout_layout_drawOnPictureSnapshot, false);
+                drawOnVideoSnapshot = a.getBoolean(
+                        R.styleable.CameraView_Layout_layout_drawOnVideoSnapshot, false);
             } finally {
                 a.recycle();
             }

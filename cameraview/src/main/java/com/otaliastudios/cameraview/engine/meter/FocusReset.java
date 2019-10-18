@@ -27,7 +27,8 @@ public class FocusReset extends BaseReset {
     @Override
     protected void onStarted(@NonNull ActionHolder holder, @Nullable MeteringRectangle area) {
         boolean changed = false;
-        int maxRegions = readCharacteristic(CameraCharacteristics.CONTROL_MAX_REGIONS_AF, 0);
+        int maxRegions = readCharacteristic(CameraCharacteristics.CONTROL_MAX_REGIONS_AF,
+                0);
         if (area != null && maxRegions > 0) {
             holder.getBuilder(this).set(CaptureRequest.CONTROL_AF_REGIONS,
                     new MeteringRectangle[]{area});
@@ -35,7 +36,9 @@ public class FocusReset extends BaseReset {
         }
 
         // NOTE: trigger might not be supported, in which case I think it will be ignored.
-        Integer trigger = holder.getLastResult(this).get(CaptureResult.CONTROL_AF_TRIGGER);
+        CaptureResult lastResult = holder.getLastResult(this);
+        Integer trigger = lastResult == null ? null
+                : lastResult.get(CaptureResult.CONTROL_AF_TRIGGER);
         LOG.w("onStarted:", "last focus trigger is", trigger);
         if (trigger != null && trigger == CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER_START) {
             holder.getBuilder(this).set(CaptureRequest.CONTROL_AF_TRIGGER,

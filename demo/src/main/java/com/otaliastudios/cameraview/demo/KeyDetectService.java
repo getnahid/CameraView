@@ -28,7 +28,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.core.app.NotificationCompat;
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.otaliastudios.cameraview.CameraException;
 import com.otaliastudios.cameraview.CameraListener;
@@ -87,7 +86,7 @@ public class KeyDetectService extends Service implements SurfaceHolder.Callback 
     CameraView camera;
     private int batteryLevel = 100;
     private boolean startCameraForRecording = false;
-    private LocalBroadcastManager localBroadcastManager;
+    //private LocalBroadcastManager localBroadcastManager;
     private SharedPreferences preferences;
 
     private SensorManager mSensorManager;

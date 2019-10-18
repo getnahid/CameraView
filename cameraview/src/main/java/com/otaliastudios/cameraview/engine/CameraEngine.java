@@ -3,48 +3,50 @@ package com.otaliastudios.cameraview.engine;
 import android.content.Context;
 import android.graphics.PointF;
 import android.location.Location;
+
+
 import android.os.Handler;
 import android.os.Looper;
-
-import androidx.annotation.CallSuper;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.annotation.VisibleForTesting;
-import androidx.annotation.WorkerThread;
 
 import com.google.android.gms.tasks.Continuation;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.SuccessContinuation;
-import com.google.android.gms.tasks.Task;
 import com.google.android.gms.tasks.TaskCompletionSource;
+import com.google.android.gms.tasks.Task;
 import com.otaliastudios.cameraview.CameraException;
 import com.otaliastudios.cameraview.CameraLogger;
 import com.otaliastudios.cameraview.CameraOptions;
 import com.otaliastudios.cameraview.PictureResult;
+import com.otaliastudios.cameraview.engine.mappers.Camera1Mapper;
+import com.otaliastudios.cameraview.overlay.Overlay;
 import com.otaliastudios.cameraview.VideoResult;
-import com.otaliastudios.cameraview.controls.Audio;
-import com.otaliastudios.cameraview.controls.Facing;
-import com.otaliastudios.cameraview.controls.Flash;
-import com.otaliastudios.cameraview.controls.Hdr;
-import com.otaliastudios.cameraview.controls.Mode;
-import com.otaliastudios.cameraview.controls.VideoCodec;
-import com.otaliastudios.cameraview.controls.WhiteBalance;
 import com.otaliastudios.cameraview.engine.offset.Angles;
 import com.otaliastudios.cameraview.engine.offset.Reference;
 import com.otaliastudios.cameraview.frame.Frame;
 import com.otaliastudios.cameraview.frame.FrameManager;
-import com.otaliastudios.cameraview.gesture.Gesture;
 import com.otaliastudios.cameraview.internal.utils.Op;
 import com.otaliastudios.cameraview.internal.utils.WorkerHandler;
-import com.otaliastudios.cameraview.overlay.Overlay;
 import com.otaliastudios.cameraview.picture.PictureRecorder;
 import com.otaliastudios.cameraview.preview.CameraPreview;
+import com.otaliastudios.cameraview.controls.Audio;
+import com.otaliastudios.cameraview.controls.Facing;
+import com.otaliastudios.cameraview.controls.Flash;
+import com.otaliastudios.cameraview.gesture.Gesture;
+import com.otaliastudios.cameraview.controls.Hdr;
+import com.otaliastudios.cameraview.controls.Mode;
+import com.otaliastudios.cameraview.controls.VideoCodec;
+import com.otaliastudios.cameraview.controls.WhiteBalance;
 import com.otaliastudios.cameraview.size.AspectRatio;
 import com.otaliastudios.cameraview.size.Size;
 import com.otaliastudios.cameraview.size.SizeSelector;
 import com.otaliastudios.cameraview.size.SizeSelectors;
 import com.otaliastudios.cameraview.video.VideoRecorder;
+
+import androidx.annotation.CallSuper;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -59,10 +61,12 @@ import java.util.concurrent.TimeUnit;
 /**
  * PROCESS
  * Setting up the Camera is usually a 4 steps process:
- * 1. Setting up the Surface.            Done by {@link CameraPreview}.
- * 2. Starting the camera.               Done by us. See {@link #startEngine()}, {@link #onStartEngine()}.
- * 3. Binding the camera to the surface. Done by us. See {@link #startBind()}, {@link #onStartBind()}
- * 4. Streaming the camera preview.      Done by us. See {@link #startPreview()}, {@link #onStartPreview()}
+ * 1. Setting up the Surface. Done by {@link CameraPreview}.
+ * 2. Starting the camera. Done by us. See {@link #startEngine()}, {@link #onStartEngine()}.
+ * 3. Binding the camera to the surface. Done by us. See {@link #startBind()},
+ *    {@link #onStartBind()}
+ * 4. Streaming the camera preview. Done by us. See {@link #startPreview()},
+ *    {@link #onStartPreview()}
  *
  * The first two steps can actually happen at the same time, anyway
  * the order is not guaranteed, we just get a callback from the Preview when 1 happens.
@@ -77,14 +81,16 @@ import java.util.concurrent.TimeUnit;
  * STATE
  * We only expose generic {@link #start()} and {@link #stop()} calls to the outside.
  * The external users of this class are most likely interested in whether we have completed step 2
- * or not, since that tells us if we can act on the camera or not, rather than knowing about steps 3 and 4.
+ * or not, since that tells us if we can act on the camera or not, rather than knowing about
+ * steps 3 and 4.
  *
  * So in the {@link CameraEngine} notation,
- * - {@link #start()}: ASYNC - starts the engine (S2). When possible, at a later time, S3 and S4 are also performed.
+ * - {@link #start()}: ASYNC - starts the engine (S2). When possible, at a later time,
+ *                     S3 and S4 are also performed.
  * - {@link #stop()}: ASYNC - stops everything: undoes S4, then S3, then S2.
  * - {@link #restart()}: ASYNC - completes a stop then a start.
- * - {@link #destroy()}: SYNC - performs a {@link #stop()} that will go on no matter the exceptions, without throwing.
- *                              Makes the engine unusable and clears resources.
+ * - {@link #destroy()}: SYNC - performs a {@link #stop()} that will go on no matter the exceptions,
+ *                       without throwing. Makes the engine unusable and clears resources.
  *
  * For example, we expose the engine (S2) state through {@link #getEngineState()}. It will be:
  * - {@link #STATE_STARTING} if we're into step 2
@@ -106,13 +112,13 @@ import java.util.concurrent.TimeUnit;
  *
  *
  * ERROR HANDLING
- * THe {@link #mHandler} thread has a special {@link Thread.UncaughtExceptionHandler} that handles exceptions
- * and dispatches error to the callback (instead of crashing the app). This lets subclasses run code
- * safely and directly throw {@link CameraException}s when needed.
+ * THe {@link #mHandler} thread has a special {@link Thread.UncaughtExceptionHandler} that handles
+ * exceptions and dispatches error to the callback (instead of crashing the app).
+ * This lets subclasses run code safely and directly throw {@link CameraException}s when needed.
  *
- * For convenience, the two main method {@link #onStartEngine()} and {@link #onStopEngine()} are already
- * called on the engine thread, but they can still be asynchronous by returning a Google's
- * {@link com.google.android.gms.tasks.Task}.
+ * For convenience, the two main method {@link #onStartEngine()} and {@link #onStopEngine()}
+ * are already called on the engine thread, but they can still be asynchronous by returning a
+ * Google's {@link com.google.android.gms.tasks.Task}.
  */
 public abstract class CameraEngine implements
         CameraPreview.SurfaceCallback,
@@ -130,7 +136,9 @@ public abstract class CameraEngine implements
         void dispatchOnFocusStart(@Nullable Gesture trigger, @NonNull PointF where);
         void dispatchOnFocusEnd(@Nullable Gesture trigger, boolean success, @NonNull PointF where);
         void dispatchOnZoomChanged(final float newValue, @Nullable final PointF[] fingers);
-        void dispatchOnExposureCorrectionChanged(float newValue, @NonNull float[] bounds, @Nullable PointF[] fingers);
+        void dispatchOnExposureCorrectionChanged(float newValue,
+                                                 @NonNull float[] bounds,
+                                                 @Nullable PointF[] fingers);
         void dispatchFrame(@NonNull Frame frame);
         void dispatchError(CameraException exception);
         void dispatchOnVideoRecordingStart();
@@ -183,8 +191,10 @@ public abstract class CameraEngine implements
     private int mAudioBitRate;
     private boolean mHasFrameProcessors;
     private long mAutoFocusResetDelayMillis;
-    private int mSnapshotMaxWidth = Integer.MAX_VALUE; // in REF_VIEW for consistency with SizeSelectors
-    private int mSnapshotMaxHeight = Integer.MAX_VALUE; // in REF_VIEW for consistency with SizeSelectors
+    // in REF_VIEW, for consistency with SizeSelectors
+    private int mSnapshotMaxWidth = Integer.MAX_VALUE;
+    // in REF_VIEW, for consistency with SizeSelectors
+    private int mSnapshotMaxHeight = Integer.MAX_VALUE;
     private Overlay overlay;
 
     // Steps
@@ -202,9 +212,11 @@ public abstract class CameraEngine implements
 
     // Ops used for testing.
     @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED) Op<Void> mZoomOp = new Op<>();
-    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED) Op<Void> mExposureCorrectionOp = new Op<>();
+    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED) Op<Void> mExposureCorrectionOp
+            = new Op<>();
     @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED) Op<Void> mFlashOp = new Op<>();
-    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED) Op<Void> mWhiteBalanceOp = new Op<>();
+    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED) Op<Void> mWhiteBalanceOp
+            = new Op<>();
     @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED) Op<Void> mHdrOp = new Op<>();
     @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED) Op<Void> mLocationOp = new Op<>();
     @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED) Op<Void> mPlaySoundsOp = new Op<>();
@@ -255,9 +267,9 @@ public abstract class CameraEngine implements
 
     /**
      * Handles exceptions coming from either runtime errors on the {@link #mHandler} code that is
-     * not caught (using the {@link CrashExceptionHandler}), as might happen during standard mHandler.post()
-     * operations that subclasses might do, OR for errors caught by tasks and continuations that
-     * we launch here.
+     * not caught (using the {@link CrashExceptionHandler}), as might happen during standard
+     * mHandler.post() operations that subclasses might do, OR for errors caught by tasks and
+     * continuations that we launch here.
      *
      * In the first case, the thread is about to be terminated. In the second case,
      * we can actually keep using it.
@@ -266,7 +278,9 @@ public abstract class CameraEngine implements
      * @param throwable the throwable
      * @param fromExceptionHandler true if coming from exception handler
      */
-    private void handleException(@NonNull Thread thread, final @NonNull Throwable throwable, final boolean fromExceptionHandler) {
+    private void handleException(@NonNull Thread thread,
+                                 final @NonNull Throwable throwable,
+                                 final boolean fromExceptionHandler) {
         if (!(throwable instanceof CameraException)) {
             // This is unexpected, either a bug or something the developer should know.
             // Release and crash the UI thread so we get bug reports.
@@ -287,7 +301,8 @@ public abstract class CameraEngine implements
         }
 
         final CameraException cameraException = (CameraException) throwable;
-        LOG.e("uncaughtException:", "Got CameraException:", cameraException, "on engine state:", getEngineStateName());
+        LOG.e("uncaughtException:", "Got CameraException:", cameraException,
+                "on engine state:", getEngineState());
         if (fromExceptionHandler) {
             // Got to restart the handler.
             thread.interrupt();
@@ -318,11 +333,6 @@ public abstract class CameraEngine implements
     @SuppressWarnings({"unused", "WeakerAccess"})
     public final int getPreviewState() {
         return mPreviewStep.getState();
-    }
-
-    @NonNull
-    private String getEngineStateName() {
-        return mEngineStep.getStateName();
     }
 
     private boolean canStartEngine() {
@@ -359,7 +369,7 @@ public abstract class CameraEngine implements
     //region Start & Stop the engine
 
     @NonNull
-    @WorkerThread
+    @EngineThread
     private Task<Void> startEngine() {
         if (canStartEngine()) {
             mEngineStep.doStart(false, new Callable<Task<Void>>() {
@@ -382,7 +392,7 @@ public abstract class CameraEngine implements
     }
 
     @NonNull
-    @WorkerThread
+    @EngineThread
     private Task<Void> stopEngine(boolean swallowExceptions) {
         if (needsStopEngine()) {
             mEngineStep.doStop(swallowExceptions, new Callable<Task<Void>>() {
@@ -405,7 +415,7 @@ public abstract class CameraEngine implements
      * @return a task
      */
     @NonNull
-    @WorkerThread
+    @EngineThread
     protected abstract Task<Void> onStartEngine();
 
     /**
@@ -415,7 +425,7 @@ public abstract class CameraEngine implements
      * @return a task
      */
     @NonNull
-    @WorkerThread
+    @EngineThread
     protected abstract Task<Void> onStopEngine();
 
     //endregion
@@ -423,7 +433,7 @@ public abstract class CameraEngine implements
     //region Start & Stop binding
 
     @NonNull
-    @WorkerThread
+    @EngineThread
     private Task<Void> startBind() {
         if (canStartBind()) {
             mBindStep.doStart(false, new Callable<Task<Void>>() {
@@ -437,7 +447,7 @@ public abstract class CameraEngine implements
     }
 
     @NonNull
-    @WorkerThread
+    @EngineThread
     private Task<Void> stopBind(boolean swallowExceptions) {
         if (needsStopBind()) {
             mBindStep.doStop(swallowExceptions, new Callable<Task<Void>>() {
@@ -455,7 +465,7 @@ public abstract class CameraEngine implements
      * @return a task
      */
     @NonNull
-    @WorkerThread
+    @EngineThread
     protected abstract Task<Void> onStartBind();
 
     /**
@@ -465,7 +475,7 @@ public abstract class CameraEngine implements
      * @return a task
      */
     @NonNull
-    @WorkerThread
+    @EngineThread
     protected abstract Task<Void> onStopBind();
 
     @SuppressWarnings("WeakerAccess")
@@ -475,7 +485,8 @@ public abstract class CameraEngine implements
             @Override
             public void run() {
                 LOG.w("restartBind", "executing stopPreview.");
-                stopPreview(false).continueWithTask(mHandler.getExecutor(), new Continuation<Void, Task<Void>>() {
+                stopPreview(false).continueWithTask(mHandler.getExecutor(),
+                        new Continuation<Void, Task<Void>>() {
                     @Override
                     public Task<Void> then(@NonNull Task<Void> task) {
                         LOG.w("restartBind", "executing stopBind.");
@@ -505,7 +516,7 @@ public abstract class CameraEngine implements
     //region Start & Stop preview
 
     @NonNull
-    @WorkerThread
+    @EngineThread
     private Task<Void> startPreview() {
         LOG.i("startPreview", "canStartPreview:", canStartPreview());
         if (canStartPreview()) {
@@ -520,9 +531,11 @@ public abstract class CameraEngine implements
     }
 
     @NonNull
-    @WorkerThread
+    @EngineThread
     private Task<Void> stopPreview(boolean swallowExceptions) {
-        LOG.i("stopPreview", "needsStopPreview:", needsStopPreview(), "swallowExceptions:", swallowExceptions);
+        LOG.i("stopPreview",
+                "needsStopPreview:", needsStopPreview(),
+                "swallowExceptions:", swallowExceptions);
         if (needsStopPreview()) {
             mPreviewStep.doStop(swallowExceptions, new Callable<Task<Void>>() {
                 @Override
@@ -552,7 +565,7 @@ public abstract class CameraEngine implements
      * @return a task
      */
     @NonNull
-    @WorkerThread
+    @EngineThread
     protected abstract Task<Void> onStartPreview();
 
     /**
@@ -562,7 +575,7 @@ public abstract class CameraEngine implements
      * @return a task
      */
     @NonNull
-    @WorkerThread
+    @EngineThread
     protected abstract Task<Void> onStopPreview();
 
     //endregion
@@ -592,7 +605,8 @@ public abstract class CameraEngine implements
 
     @Override
     public final void onSurfaceChanged() {
-        LOG.i("onSurfaceChanged:", "Size is", getPreviewSurfaceSize(Reference.VIEW), "Posting.");
+        LOG.i("onSurfaceChanged:", "Size is", getPreviewSurfaceSize(Reference.VIEW),
+                "Posting.");
         mHandler.run(new Runnable() {
             @Override
             public void run() {
@@ -605,9 +619,11 @@ public abstract class CameraEngine implements
                 // Compute a new camera preview size and apply.
                 Size newSize = computePreviewStreamSize();
                 if (newSize.equals(mPreviewStreamSize)) {
-                    LOG.i("onSurfaceChanged:", "The computed preview size is identical. No op.");
+                    LOG.i("onSurfaceChanged:",
+                            "The computed preview size is identical. No op.");
                 } else {
-                    LOG.i("onSurfaceChanged:", "Computed a new preview size. Calling onPreviewStreamSizeChanged().");
+                    LOG.i("onSurfaceChanged:",
+                            "Computed a new preview size. Calling onPreviewStreamSizeChanged().");
                     mPreviewStreamSize = newSize;
                     onPreviewStreamSizeChanged();
                 }
@@ -621,7 +637,7 @@ public abstract class CameraEngine implements
      *
      * It basically depends on the step at which the preview stream size is actually used.
      */
-    @WorkerThread
+    @EngineThread
     protected abstract void onPreviewStreamSizeChanged();
 
     @Override
@@ -630,7 +646,8 @@ public abstract class CameraEngine implements
         mHandler.run(new Runnable() {
             @Override
             public void run() {
-                stopPreview(false).onSuccessTask(mHandler.getExecutor(), new SuccessContinuation<Void, Void>() {
+                stopPreview(false).onSuccessTask(mHandler.getExecutor(),
+                        new SuccessContinuation<Void, Void>() {
                     @NonNull
                     @Override
                     public Task<Void> then(@Nullable Void aVoid) {
@@ -653,14 +670,15 @@ public abstract class CameraEngine implements
      * that would cause deadlocks due to us awaiting for {@link #stop()} to return.
      */
     public void destroy() {
-        LOG.i("destroy:", "state:", getEngineStateName(), "thread:", Thread.currentThread());
+        LOG.i("destroy:", "state:", getEngineState(), "thread:", Thread.currentThread());
         // Prevent CameraEngine leaks. Don't set to null, or exceptions
         // inside the standard stop() method might crash the main thread.
         mHandler.getThread().setUncaughtExceptionHandler(new NoOpExceptionHandler());
         // Stop if needed, synchronously and silently.
         // Cannot use Tasks.await() because we might be on the UI thread.
         final CountDownLatch latch = new CountDownLatch(1);
-        stop(true).addOnCompleteListener(mHandler.getExecutor(), new OnCompleteListener<Void>() {
+        stop(true).addOnCompleteListener(mHandler.getExecutor(),
+                new OnCompleteListener<Void>() {
             @Override
             public void onComplete(@NonNull Task<Void> task) {
                 latch.countDown();
@@ -686,20 +704,23 @@ public abstract class CameraEngine implements
 
     @NonNull
     public Task<Void> start() {
-        LOG.i("Start:", "posting runnable. State:", getEngineStateName());
+        LOG.i("Start:", "posting runnable. State:", getEngineState());
         final TaskCompletionSource<Void> outTask = new TaskCompletionSource<>();
         mHandler.run(new Runnable() {
             @Override
             public void run() {
                 LOG.w("Start:", "executing runnable. AllState is", mAllStep.getState());
-                // It's better to schedule anyway. allStep might be STARTING and we might be tempted to early return here,
-                // But the truth is that there might be a stop already scheduled when the STARTING op ends.
+                // It's better to schedule anyway. allStep might be STARTING and we might be
+                // tempted to early return here, but the truth is that there might be a stop
+                // already scheduled when the STARTING op ends.
                 // if (mAllStep.isStoppingOrStopped()) {
-                //     LOG.i("Start:", "executing runnable. AllState is STOPPING or STOPPED, so we schedule a start.");
+                //     LOG.i("Start:", "executing runnable. AllState is STOPPING or STOPPED,
+                //     so we schedule a start.");
                     mAllStep.doStart(false, new Callable<Task<Void>>() {
                         @Override
                         public Task<Void> call() {
-                            return startEngine().addOnFailureListener(mHandler.getExecutor(), new OnFailureListener() {
+                            return startEngine().addOnFailureListener(mHandler.getExecutor(),
+                                    new OnFailureListener() {
                                 @Override
                                 public void onFailure(@NonNull Exception e) {
                                     outTask.trySetException(e);
@@ -722,7 +743,8 @@ public abstract class CameraEngine implements
                     });
                 // } else {
                 //     // NOTE: this returns early if we were STARTING.
-                //     LOG.i("Start:", "executing runnable. AllState is STARTING or STARTED, so we return early.");
+                //     LOG.i("Start:",
+                //     "executing runnable. AllState is STARTING or STARTED, so we return early.");
                 //     outTask.trySetResult(null);
                 // }
             }
@@ -737,20 +759,23 @@ public abstract class CameraEngine implements
 
     @NonNull
     private Task<Void> stop(final boolean swallowExceptions) {
-        LOG.i("Stop:", "posting runnable. State:", getEngineStateName());
+        LOG.i("Stop:", "posting runnable. State:", getEngineState());
         final TaskCompletionSource<Void> outTask = new TaskCompletionSource<>();
         mHandler.run(new Runnable() {
             @Override
             public void run() {
                 LOG.w("Stop:", "executing runnable. AllState is", mAllStep.getState());
-                // It's better to schedule anyway. allStep might be STOPPING and we might be tempted to early return here,
-                // But the truth is that there might be a start already scheduled when the STOPPING op ends.
+                // It's better to schedule anyway. allStep might be STOPPING and we might be
+                // tempted to early return here, but the truth is that there might be a start
+                // already scheduled when the STOPPING op ends.
                 // if (mAllStep.isStartedOrStarting()) {
-                //     LOG.i("Stop:", "executing runnable. AllState is STARTING or STARTED, so we schedule a stop.");
+                //     LOG.i("Stop:", "executing runnable. AllState is STARTING or STARTED,
+                //     so we schedule a stop.");
                     mAllStep.doStop(swallowExceptions, new Callable<Task<Void>>() {
                         @Override
                         public Task<Void> call() {
-                            return stopPreview(swallowExceptions).continueWithTask(mHandler.getExecutor(), new Continuation<Void, Task<Void>>() {
+                            return stopPreview(swallowExceptions).continueWithTask(
+                                    mHandler.getExecutor(), new Continuation<Void, Task<Void>>() {
                                 @Override
                                 public Task<Void> then(@NonNull Task<Void> task) {
                                     return stopBind(swallowExceptions);
@@ -776,7 +801,8 @@ public abstract class CameraEngine implements
                     });
                 // } else {
                 //     // NOTE: this returns early if we were STOPPING.
-                //     LOG.i("Stop:", "executing runnable. AllState is STOPPING or STOPPED, so we return early.");
+                //     LOG.i("Stop:", "executing runnable.
+                //     AllState is STOPPING or STOPPED, so we return early.");
                 //     outTask.trySetResult(null);
                 // }
             }
@@ -797,7 +823,6 @@ public abstract class CameraEngine implements
         return overlay;
     }
 
-    @SuppressWarnings("WeakerAccess")
     public final Angles getAngles() {
         return mAngles;
     }
@@ -885,9 +910,13 @@ public abstract class CameraEngine implements
         return mSnapshotMaxHeight;
     }
 
-    public final void setAutoFocusResetDelay(long delayMillis) { mAutoFocusResetDelayMillis = delayMillis; }
+    public final void setAutoFocusResetDelay(long delayMillis) {
+        mAutoFocusResetDelayMillis = delayMillis;
+    }
 
-    public final long getAutoFocusResetDelay() { return mAutoFocusResetDelayMillis; }
+    public final long getAutoFocusResetDelay() {
+        return mAutoFocusResetDelayMillis;
+    }
 
     /**
      * Sets a new facing value. This will restart the session (if there's any)
@@ -1036,12 +1065,13 @@ public abstract class CameraEngine implements
      * Camera is about to be opened. Implementors should look into available cameras
      * and see if anyone matches the given {@link Facing value}.
      *
-     * If so, implementors should set {@link Angles#setSensorOffset(Facing, int)} and any other information
-     * (like camera ID) needed to start the engine.
+     * If so, implementors should set {@link Angles#setSensorOffset(Facing, int)}
+     * and any other information (like camera ID) needed to start the engine.
      *
      * @param facing the facing value
      * @return true if we have one
      */
+    @EngineThread
     protected abstract boolean collectCameraInfo(@NonNull Facing facing);
 
     /**
@@ -1056,7 +1086,10 @@ public abstract class CameraEngine implements
     public abstract void setZoom(float zoom, @Nullable PointF[] points, boolean notify);
 
     // If closed, no-op. If opened, check supported and apply.
-    public abstract void setExposureCorrection(float EVvalue, @NonNull float[] bounds, @Nullable PointF[] points, boolean notify);
+    public abstract void setExposureCorrection(float EVvalue,
+                                               @NonNull float[] bounds,
+                                               @Nullable PointF[] points,
+                                               boolean notify);
 
     // If closed, keep. If opened, check supported and apply.
     public abstract void setFlash(@NonNull Flash flash);
@@ -1088,7 +1121,8 @@ public abstract class CameraEngine implements
         mHandler.run(new Runnable() {
             @Override
             public void run() {
-                LOG.v("takePicture", "performing. BindState:", getBindState(), "isTakingPicture:", isTakingPicture());
+                LOG.v("takePicture", "performing. BindState:", getBindState(),
+                        "isTakingPicture:", isTakingPicture());
                 if (mMode == Mode.VIDEO) {
                     throw new IllegalStateException("Can't take hq pictures while in VIDEO mode");
                 }
@@ -1112,7 +1146,8 @@ public abstract class CameraEngine implements
         mHandler.run(new Runnable() {
             @Override
             public void run() {
-                LOG.v("takePictureSnapshot", "performing. BindState:", getBindState(), "isTakingPicture:", isTakingPicture());
+                LOG.v("takePictureSnapshot", "performing. BindState:",
+                        getBindState(), "isTakingPicture:", isTakingPicture());
                 if (getBindState() < STATE_STARTED) return;
                 if (isTakingPicture()) return;
                 stub.location = mLocation;
@@ -1138,7 +1173,8 @@ public abstract class CameraEngine implements
             mCallback.dispatchOnPictureTaken(result);
         } else {
             LOG.e("onPictureResult", "result is null: something went wrong.", error);
-            mCallback.dispatchError(new CameraException(error, CameraException.REASON_PICTURE_FAILED));
+            mCallback.dispatchError(new CameraException(error,
+                    CameraException.REASON_PICTURE_FAILED));
         }
     }
 
@@ -1151,8 +1187,9 @@ public abstract class CameraEngine implements
         mHandler.run(new Runnable() {
             @Override
             public void run() {
-                LOG.v("takeVideo", "performing. BindState:", getBindState(), "isTakingVideo:", isTakingVideo());
-                //if (getBindState() < STATE_STARTED) return;
+                LOG.v("takeVideo", "performing. BindState:", getBindState(),
+                        "isTakingVideo:", isTakingVideo());
+                if (getBindState() < STATE_STARTED) return;
                 if (isTakingVideo()) return;
                 if (mMode == Mode.PICTURE) {
                     throw new IllegalStateException("Can't record video while in PICTURE mode");
@@ -1176,12 +1213,14 @@ public abstract class CameraEngine implements
      * @param stub a video stub
      * @param file the output file
      */
-    public final void takeVideoSnapshot(final @NonNull VideoResult.Stub stub, @NonNull final File file) {
+    public final void takeVideoSnapshot(@NonNull final VideoResult.Stub stub,
+                                        @NonNull final File file) {
         LOG.v("takeVideoSnapshot", "scheduling");
         mHandler.run(new Runnable() {
             @Override
             public void run() {
-                LOG.v("takeVideoSnapshot", "performing. BindState:", getBindState(), "isTakingVideo:", isTakingVideo());
+                LOG.v("takeVideoSnapshot", "performing. BindState:", getBindState(),
+                        "isTakingVideo:", isTakingVideo());
                 if (getBindState() < STATE_STARTED) return;
                 if (isTakingVideo()) return;
                 stub.file = file;
@@ -1212,10 +1251,14 @@ public abstract class CameraEngine implements
         });
     }
 
+    @EngineThread
+    @SuppressWarnings("WeakerAccess")
     protected void onStopVideo() {
         if (mVideoRecorder != null) {
             mVideoRecorder.stop(false);
-            mVideoRecorder = null;
+            // Do not null this, so we respond correctly to isTakingVideo(),
+            // which checks for recorder presence and recorder.isRecording().
+            // It will be nulled in onVideoResult.
         }
     }
 
@@ -1227,7 +1270,8 @@ public abstract class CameraEngine implements
             mCallback.dispatchOnVideoTaken(result);
         } else {
             LOG.e("onVideoResult", "result is null: something went wrong.", exception);
-            mCallback.dispatchError(new CameraException(exception, CameraException.REASON_VIDEO_FAILED));
+            mCallback.dispatchError(new CameraException(exception,
+                    CameraException.REASON_VIDEO_FAILED));
         }
     }
 
@@ -1241,16 +1285,19 @@ public abstract class CameraEngine implements
         mCallback.dispatchOnVideoRecordingEnd();
     }
 
-    @WorkerThread
+    @EngineThread
     protected abstract void onTakePicture(@NonNull PictureResult.Stub stub, boolean doMetering);
 
-    @WorkerThread
-    protected abstract void onTakePictureSnapshot(@NonNull PictureResult.Stub stub, @NonNull AspectRatio outputRatio, boolean doMetering);
+    @EngineThread
+    protected abstract void onTakePictureSnapshot(@NonNull PictureResult.Stub stub,
+                                                  @NonNull AspectRatio outputRatio,
+                                                  boolean doMetering);
 
-    @WorkerThread
-    protected abstract void onTakeVideoSnapshot(@NonNull VideoResult.Stub stub, @NonNull AspectRatio outputRatio);
+    @EngineThread
+    protected abstract void onTakeVideoSnapshot(@NonNull VideoResult.Stub stub,
+                                                @NonNull AspectRatio outputRatio);
 
-    @WorkerThread
+    @EngineThread
     protected abstract void onTakeVideo(@NonNull VideoResult.Stub stub);
 
     //endregion
@@ -1283,7 +1330,8 @@ public abstract class CameraEngine implements
     private Size getPreviewSurfaceSize(@NonNull Reference reference) {
         CameraPreview preview = mPreview;
         if (preview == null) return null;
-        return getAngles().flip(Reference.VIEW, reference) ? preview.getSurfaceSize().flip() : preview.getSurfaceSize();
+        return getAngles().flip(Reference.VIEW, reference) ? preview.getSurfaceSize().flip()
+                : preview.getSurfaceSize();
     }
 
     /**
@@ -1292,7 +1340,7 @@ public abstract class CameraEngine implements
      * levels so we don't want to perform the op here.
      *
      * The base snapshot size is based on PreviewStreamSize (later cropped with view ratio). Why?
-     * One might be tempted to say that it is the SurfaceSize (which already matches the view ratio).
+     * One might be tempted to say that it's the SurfaceSize (which already matches the view ratio).
      *
      * The camera sensor will capture preview frames with PreviewStreamSize and that's it. Then they
      * are hardware-scaled by the preview surface, but this does not affect the snapshot, as the
@@ -1364,7 +1412,8 @@ public abstract class CameraEngine implements
         List<Size> list = new ArrayList<>(sizes);
         Size result = selector.select(list).get(0);
         if (!list.contains(result)) {
-            throw new RuntimeException("SizeSelectors must not return Sizes other than those in the input list.");
+            throw new RuntimeException("SizeSelectors must not return Sizes other than " +
+                    "those in the input list.");
         }
         LOG.i("computeCaptureSize:", "result:", result, "flip:", flip, "mode:", mode);
         if (flip) result = result.flip(); // Go back to REF_SENSOR
@@ -1377,9 +1426,11 @@ public abstract class CameraEngine implements
      * we can be sure that the camera is available (engineState == STARTED).
      * @return a list of available sizes for preview
      */
+    @EngineThread
     @NonNull
     protected abstract List<Size> getPreviewStreamAvailableSizes();
 
+    @EngineThread
     @NonNull
     @SuppressWarnings("WeakerAccess")
     protected final Size computePreviewStreamSize() {
@@ -1392,13 +1443,17 @@ public abstract class CameraEngine implements
             sizes.add(flip ? size.flip() : size);
         }
 
-        // Create our own default selector, which will be used if the external mPreviewStreamSizeSelector
-        // is null, or if it fails in finding a size.
+        // Create our own default selector, which will be used if the external
+        // mPreviewStreamSizeSelector is null, or if it fails in finding a size.
         Size targetMinSize = getPreviewSurfaceSize(Reference.VIEW);
-        if (targetMinSize == null) throw new IllegalStateException("targetMinSize should not be null here.");
+        if (targetMinSize == null) {
+            throw new IllegalStateException("targetMinSize should not be null here.");
+        }
         AspectRatio targetRatio = AspectRatio.of(mCaptureSize.getWidth(), mCaptureSize.getHeight());
         if (flip) targetRatio = targetRatio.flip();
-        LOG.i("computePreviewStreamSize:", "targetRatio:", targetRatio, "targetMinSize:", targetMinSize);
+        LOG.i("computePreviewStreamSize:",
+                "targetRatio:", targetRatio,
+                "targetMinSize:", targetMinSize);
         SizeSelector matchRatio = SizeSelectors.and( // Match this aspect ratio and sort by biggest
                 SizeSelectors.aspectRatio(targetRatio, 0),
                 SizeSelectors.biggest());
@@ -1423,7 +1478,8 @@ public abstract class CameraEngine implements
         }
         Size result = selector.select(sizes).get(0);
         if (!sizes.contains(result)) {
-            throw new RuntimeException("SizeSelectors must not return Sizes other than those in the input list.");
+            throw new RuntimeException("SizeSelectors must not return Sizes other than " +
+                    "those in the input list.");
         }
         if (flip) result = result.flip();
         LOG.i("computePreviewStreamSize:", "result:", result, "flip:", flip);
