@@ -195,6 +195,7 @@ public class KeyDetectService extends Service implements SurfaceHolder.Callback 
             LOG.w("onVideoTaken called! Launching activity.");
             VideoPreviewActivity.setVideoResult(result);
             Intent intent = new Intent(getApplicationContext(), VideoPreviewActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
              startActivity(intent);
             LOG.w("onVideoTaken called! Launched activity.");
         }

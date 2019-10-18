@@ -12,7 +12,6 @@ import com.otaliastudios.cameraview.VideoResult;
 import com.otaliastudios.cameraview.controls.Audio;
 import com.otaliastudios.cameraview.controls.VideoCodec;
 import com.otaliastudios.cameraview.internal.DeviceEncoders;
-import com.otaliastudios.cameraview.size.Size;
 
 /**
  * A {@link VideoRecorder} that uses {@link android.media.MediaRecorder} APIs.
