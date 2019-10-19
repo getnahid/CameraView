@@ -61,6 +61,48 @@ public class CameraActivity extends AppCompatActivity implements View.OnClickLis
         findViewById(R.id.toggleCamera).setOnClickListener(this);
         findViewById(R.id.changeFilter).setOnClickListener(this);
 
+        findViewById(R.id.openCamera).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                service.startCameraForRecording();
+            }
+        });
+
+        findViewById(R.id.closeCamera).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                service.closeCamera();
+            }
+        });
+
+        findViewById(R.id.startPreview).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                service.startPreview();
+            }
+        });
+
+        findViewById(R.id.stopPreview).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                service.stopPreview();
+            }
+        });
+
+        findViewById(R.id.startRecording).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                service.startRecording();
+            }
+        });
+
+        findViewById(R.id.stopRecording).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                service.stopRecording(false);
+            }
+        });
+
         controlPanel = findViewById(R.id.controls);
         ViewGroup group = (ViewGroup) controlPanel.getChildAt(0);
         //final View watermark = findViewById(R.id.watermark);
@@ -300,7 +342,7 @@ public class CameraActivity extends AppCompatActivity implements View.OnClickLis
 //        if (camera.isTakingPicture() || camera.isTakingVideo()) return;
 //        message("Recording for 5 seconds...", true);
 //        camera.takeVideo(new File(getFilesDir(), "video.mp4"), 5000);
-        service.startCameraForRecording();
+        //service.startCameraForRecording();
     }
 
     private void captureVideoSnapshot() {

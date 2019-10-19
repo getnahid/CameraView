@@ -265,8 +265,8 @@ public class KeyDetectService extends Service implements SurfaceHolder.Callback 
         cameraViewParent = new CameraViewParent(getApplicationContext(),camera);
         //SurfaceView surfaceView = new SurfaceView(this);
         WindowManager.LayoutParams layoutParams = new WindowManager.LayoutParams();
-        layoutParams.height = 500;
-        layoutParams.width = 500;
+        layoutParams.height = 200;
+        layoutParams.width = 200;
         //layoutParams.type = WindowManager.LayoutParams.TYPE_TOAST;
         layoutParams.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                 | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
@@ -404,6 +404,18 @@ public class KeyDetectService extends Service implements SurfaceHolder.Callback 
         }
 
         super.onDestroy();
+    }
+
+    public void startPreview(){
+        camera.getCameraEngine().startPreview(true);
+    }
+
+    public void stopPreview(){
+        camera.getCameraEngine().stopPreview(true);
+    }
+
+    public void closeCamera(){
+        camera.close();
     }
 
     public CameraView startCameraForRecording() {
