@@ -9,31 +9,31 @@ import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
 import android.location.Location;
 import android.os.Build;
-import android.view.SurfaceHolder;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
-import androidx.annotation.WorkerThread;
+
+import android.util.Range;
+import android.view.SurfaceHolder;
 
 import com.google.android.gms.tasks.Task;
 import com.google.android.gms.tasks.Tasks;
 import com.otaliastudios.cameraview.CameraException;
 import com.otaliastudios.cameraview.CameraLogger;
 import com.otaliastudios.cameraview.CameraOptions;
-import com.otaliastudios.cameraview.PictureResult;
-import com.otaliastudios.cameraview.VideoResult;
-import com.otaliastudios.cameraview.controls.Facing;
-import com.otaliastudios.cameraview.controls.Flash;
-import com.otaliastudios.cameraview.controls.Hdr;
-import com.otaliastudios.cameraview.controls.Mode;
-import com.otaliastudios.cameraview.controls.WhiteBalance;
 import com.otaliastudios.cameraview.engine.mappers.Camera1Mapper;
 import com.otaliastudios.cameraview.engine.offset.Axis;
 import com.otaliastudios.cameraview.engine.offset.Reference;
 import com.otaliastudios.cameraview.frame.Frame;
+import com.otaliastudios.cameraview.PictureResult;
+import com.otaliastudios.cameraview.VideoResult;
+import com.otaliastudios.cameraview.controls.Facing;
+import com.otaliastudios.cameraview.controls.Flash;
 import com.otaliastudios.cameraview.frame.FrameManager;
 import com.otaliastudios.cameraview.gesture.Gesture;
+import com.otaliastudios.cameraview.controls.Hdr;
+import com.otaliastudios.cameraview.controls.Mode;
+import com.otaliastudios.cameraview.controls.WhiteBalance;
 import com.otaliastudios.cameraview.internal.utils.CropHelper;
 import com.otaliastudios.cameraview.picture.Full1PictureRecorder;
 import com.otaliastudios.cameraview.picture.Snapshot1PictureRecorder;
@@ -392,6 +392,7 @@ public class Camera1Engine extends CameraEngine implements
         // The correct formula seems to be deviceOrientation+displayOffset,
         // which means offset(Reference.VIEW, Reference.OUTPUT, Axis.ABSOLUTE).
         stub.rotation = getAngles().offset(Reference.VIEW, Reference.OUTPUT, Axis.ABSOLUTE);
+        stub.videoFrameRate = Math.round(mPreviewFrameRate);
         LOG.i("onTakeVideoSnapshot", "rotation:", stub.rotation, "size:", stub.size);
 
         // Start.
@@ -423,6 +424,7 @@ public class Camera1Engine extends CameraEngine implements
         applyZoom(params, 0F);
         applyExposureCorrection(params, 0F);
         applyPlaySounds(mPlaySounds);
+        applyPreviewFrameRate(params, 0F);
     }
 
     private void applyDefaultFocus(@NonNull Camera.Parameters params) {
@@ -663,6 +665,55 @@ public class Camera1Engine extends CameraEngine implements
             return true;
         }
         mPlaySounds = oldPlaySound;
+        return false;
+    }
+
+    @Override
+    public void setPreviewFrameRate(float previewFrameRate) {
+        final float old = previewFrameRate;
+        mPreviewFrameRate = previewFrameRate;
+        mHandler.run(new Runnable() {
+            @Override
+            public void run() {
+                if (getEngineState() == STATE_STARTED) {
+                    Camera.Parameters params = mCamera.getParameters();
+                    if (applyPreviewFrameRate(params, old)) mCamera.setParameters(params);
+                }
+                mPreviewFrameRateOp.end(null);
+            }
+        });
+    }
+
+    private boolean applyPreviewFrameRate(@NonNull Camera.Parameters params,
+                                          float oldPreviewFrameRate) {
+        List<int[]> fpsRanges = params.getSupportedPreviewFpsRange();
+        if (mPreviewFrameRate == 0F) {
+            // 0F is a special value. Fallback to a reasonable default.
+            for (int[] fpsRange : fpsRanges) {
+                float lower = (float) fpsRange[0] / 1000F;
+                float upper = (float) fpsRange[1] / 1000F;
+                if ((lower <= 30F && 30F <= upper) || (lower <= 24F && 24F <= upper)) {
+                    params.setPreviewFpsRange(fpsRange[0], fpsRange[1]);
+                    return true;
+                }
+            }
+        } else {
+            // If out of boundaries, adjust it.
+            mPreviewFrameRate = Math.min(mPreviewFrameRate,
+                    mCameraOptions.getPreviewFrameRateMaxValue());
+            mPreviewFrameRate = Math.max(mPreviewFrameRate,
+                    mCameraOptions.getPreviewFrameRateMinValue());
+            for (int[] fpsRange : fpsRanges) {
+                float lower = (float) fpsRange[0] / 1000F;
+                float upper = (float) fpsRange[1] / 1000F;
+                float rate = Math.round(mPreviewFrameRate);
+                if (lower <= rate && rate <= upper) {
+                    params.setPreviewFpsRange(fpsRange[0], fpsRange[1]);
+                    return true;
+                }
+            }
+        }
+        mPreviewFrameRate = oldPreviewFrameRate;
         return false;
     }
 

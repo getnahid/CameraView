@@ -1,10 +1,9 @@
 package com.otaliastudios.cameraview.controls;
 
 
-import com.otaliastudios.cameraview.CameraView;
-
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+
+import com.otaliastudios.cameraview.CameraView;
 
 /**
  * The engine to be used.
@@ -24,7 +23,7 @@ public enum Engine implements Control {
      */
     CAMERA2(1);
 
-    final static Engine DEFAULT = CAMERA1;
+    final static Engine DEFAULT = CAMERA2;
 
     private int value;
 

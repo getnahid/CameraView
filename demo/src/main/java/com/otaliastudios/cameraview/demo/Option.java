@@ -1,11 +1,11 @@
 package com.otaliastudios.cameraview.demo;
 
 import android.graphics.Color;
-import android.view.View;
-import android.view.ViewGroup;
-
 import androidx.annotation.NonNull;
 import androidx.core.util.Pair;
+
+import android.view.View;
+import android.view.ViewGroup;
 
 import com.otaliastudios.cameraview.CameraListener;
 import com.otaliastudios.cameraview.CameraOptions;
@@ -60,7 +60,7 @@ public abstract class Option<T> {
         @Override
         public Collection<Integer> getAll(@NonNull CameraView view, @NonNull CameraOptions options) {
 //            View root = (View) view.getParent();
-//            ArrayList<Integer> list = new ArrayList<>();
+//            List<Integer> list = new ArrayList<>();
 //            int boundary = root.getWidth();
 //            if (boundary == 0) boundary = 1000;
 //            int step = boundary / 10;
@@ -511,4 +511,45 @@ public abstract class Option<T> {
             view.setUseDeviceOrientation(value);
         }
     }
+
+    public static class PreviewFrameRate extends Option<Integer> {
+        public PreviewFrameRate() {
+            super("Preview FPS");
+        }
+
+        @NonNull
+        @Override
+        public Collection<Integer> getAll(@NonNull CameraView view, @NonNull CameraOptions options) {
+            float min = options.getPreviewFrameRateMinValue();
+            float max = options.getPreviewFrameRateMaxValue();
+            float delta = max - min;
+            List<Integer> result = new ArrayList<>();
+            if (min == 0F && max == 0F) {
+                return result; // empty list
+            } else if (delta < 0.005F) {
+                result.add(Math.round(min));
+                return result; // single value
+            } else {
+                final int steps = 3;
+                final float step = delta / steps;
+                for (int i = 0; i <= steps; i++) {
+                    result.add(Math.round(min));
+                    min += step;
+                }
+                return result;
+            }
+        }
+
+        @NonNull
+        @Override
+        public Integer get(@NonNull CameraView view) {
+            return Math.round(view.getPreviewFrameRate());
+        }
+
+        @Override
+        public void set(@NonNull CameraView view, @NonNull Integer value) {
+            view.setPreviewFrameRate((float) value);
+        }
+    }
+
 }

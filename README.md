@@ -12,7 +12,7 @@
 
 *Post-processing videos or want to reduce video size before uploading? Take a look at our [Transcoder](https://github.com/natario1/Transcoder).*
 
-*Like the project, make profit from it, or simply want to thank back? Please consider [donating](https://natario1.github.io/CameraView/extra/donate)!*
+*Like the project, make profit from it, or simply want to thank back? Please consider [sponsoring me](https://github.com/sponsors/natario1) or [donating](https://natario1.github.io/CameraView/extra/donate)!*
 
 *Need support, consulting, or have any other business-related question? Feel free to <a href="mailto:mat.iavarone@gmail.com">get in touch</a>.*
 
@@ -22,7 +22,7 @@ CameraView is a well documented, high-level library that makes capturing picture
 addressing most of the common issues and needs, and still leaving you with flexibility where needed.
 
 ```groovy
-api 'com.otaliastudios:cameraview:2.3.1'
+api 'com.otaliastudios:cameraview:2.4.0'
 ```
 
 - Fast & reliable
@@ -50,9 +50,11 @@ api 'com.otaliastudios:cameraview:2.3.1'
 
 ## Support 
 
-If you like the project, make profit from it, or simply want to thank back, please consider
-[donating](https://natario1.github.io/CameraView/extra/donate) now! You can either make a one time
-donation or become a sponsor, in which case your company logo will immediately show up below.
+If you like the project, make profit from it, or simply want to thank back, please consider 
+[sponsoring me](https://github.com/sponsors/natario1) through the GitHub Sponsors program! You can
+have your company logo here, get private support hours or simply help me push this forward.
+If you prefer, you can also [donate](https://natario1.github.io/CameraView/extra/donate) 
+to our OpenCollective page.
 
 CameraView is trusted and supported by [ShareChat](https://sharechat.com/), a social media app with over 100 million downloads. 
 
@@ -62,11 +64,11 @@ CameraView is trusted and supported by [ShareChat](https://sharechat.com/), a so
 
 Feel free to <a href="mailto:mat.iavarone@gmail.com">contact me</a> for support, consulting or any other business-related question.
 
-Thanks to all our backers... [[become a backer]](https://opencollective.com/cameraview#backer)
+Thanks to all our project backers... [[become a backer]](https://opencollective.com/cameraview#backer)
 
 <a href="https://opencollective.com/cameraview#backers" target="_blank"><img src="https://opencollective.com/cameraview/backers.svg?width=890"></a>
 
-...and to all our sponsors! [[become a sponsor]](https://opencollective.com/cameraview#sponsor)
+...and to all our project sponsors! [[become a sponsor]](https://opencollective.com/cameraview#sponsor)
 
 <a href="https://opencollective.com/cameraview/sponsor/0/website" target="_blank"><img src="https://opencollective.com/cameraview/sponsor/0/avatar.svg"></a>
 <a href="https://opencollective.com/cameraview/sponsor/1/website" target="_blank"><img src="https://opencollective.com/cameraview/sponsor/1/avatar.svg"></a>
@@ -120,6 +122,7 @@ Using CameraView is extremely simple:
     app:cameraGestureScrollVertical="none|zoom|exposureCorrection|filterControl1|filterControl2"
     app:cameraEngine="camera1|camera2"
     app:cameraPreview="glSurface|surface|texture"
+    app:cameraPreviewFrameRate="@integer/preview_frame_rate"
     app:cameraFacing="back|front"
     app:cameraHdr="on|off"
     app:cameraFlash="on|auto|torch|off"

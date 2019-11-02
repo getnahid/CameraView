@@ -10,16 +10,25 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.PointF;
+import android.graphics.Rect;
 import android.location.Location;
 import android.media.MediaActionSound;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.preference.PreferenceManager;
+import android.util.AttributeSet;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.ViewGroup;
 
+import androidx.annotation.ColorInt;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
+import androidx.lifecycle.Lifecycle;
+import androidx.lifecycle.LifecycleOwner;
+import androidx.lifecycle.OnLifecycleEvent;
 
 import com.otaliastudios.cameraview.controls.Audio;
 import com.otaliastudios.cameraview.controls.Control;
@@ -37,14 +46,30 @@ import com.otaliastudios.cameraview.engine.Camera1Engine;
 import com.otaliastudios.cameraview.engine.Camera2Engine;
 import com.otaliastudios.cameraview.engine.CameraEngine;
 import com.otaliastudios.cameraview.engine.offset.Reference;
+import com.otaliastudios.cameraview.filter.Filter;
 import com.otaliastudios.cameraview.filter.FilterParser;
+import com.otaliastudios.cameraview.filter.Filters;
+import com.otaliastudios.cameraview.filter.NoFilter;
+import com.otaliastudios.cameraview.filter.OneParameterFilter;
+import com.otaliastudios.cameraview.filter.TwoParameterFilter;
 import com.otaliastudios.cameraview.frame.Frame;
 import com.otaliastudios.cameraview.frame.FrameProcessor;
 import com.otaliastudios.cameraview.gesture.Gesture;
+import com.otaliastudios.cameraview.gesture.GestureAction;
 import com.otaliastudios.cameraview.gesture.GestureFinder;
+import com.otaliastudios.cameraview.internal.utils.CropHelper;
 import com.otaliastudios.cameraview.internal.utils.OrientationHelper;
 import com.otaliastudios.cameraview.internal.utils.WorkerHandler;
+import com.otaliastudios.cameraview.markers.AutoFocusMarker;
+import com.otaliastudios.cameraview.markers.AutoFocusTrigger;
+import com.otaliastudios.cameraview.markers.MarkerLayout;
 import com.otaliastudios.cameraview.overlay.OverlayLayout;
+import com.otaliastudios.cameraview.preview.CameraPreview;
+import com.otaliastudios.cameraview.preview.FilterCameraPreview;
+import com.otaliastudios.cameraview.preview.GlCameraPreview;
+import com.otaliastudios.cameraview.preview.SurfaceCameraPreview;
+import com.otaliastudios.cameraview.preview.TextureCameraPreview;
+import com.otaliastudios.cameraview.size.AspectRatio;
 import com.otaliastudios.cameraview.size.Size;
 import com.otaliastudios.cameraview.size.SizeSelector;
 import com.otaliastudios.cameraview.size.SizeSelectorParser;
@@ -54,6 +79,11 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+
+import static android.view.View.MeasureSpec.AT_MOST;
+import static android.view.View.MeasureSpec.EXACTLY;
+import static android.view.View.MeasureSpec.UNSPECIFIED;
+import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 
 /**
  * Entry point for the whole library.
@@ -108,6 +138,8 @@ public class CameraView {
     public static final String KEY_CAMERA_AUTO_FOCUS_RESET_DELAY = "CameraView_cameraAutoFocusResetDelay";
     public static final String KEY_CAMERA_PICTURE_METERING = "CameraView_cameraPictureMetering";
     public static final String KEY_CAMERA_SNAPSHOT_METERING = "CameraView_cameraPictureSnapshotMetering";
+    public static final String KEY_PREVIEW_FRAME_RATE = "CameraView_cameraPreviewFrameRate";
+
 
     public CameraView(@NonNull Context context) {
         //super(context, null);
@@ -146,6 +178,8 @@ public class CameraView {
         long autoFocusResetDelay = (long) preference.getInt(KEY_CAMERA_AUTO_FOCUS_RESET_DELAY, (int) DEFAULT_AUTOFOCUS_RESET_DELAY_MILLIS);
         boolean pictureMetering = preference.getBoolean(KEY_CAMERA_PICTURE_METERING, DEFAULT_PICTURE_METERING);
         boolean pictureSnapshotMetering = preference.getBoolean(KEY_CAMERA_SNAPSHOT_METERING, DEFAULT_PICTURE_SNAPSHOT_METERING);
+        float videoFrameRate = (float) preference.getInt(KEY_PREVIEW_FRAME_RATE, 0);
+        //float videoFrameRate = a.getFloat(R.styleable.CameraView_cameraPreviewFrameRate, 0);
 
         // Size selectors and gestures
         SizeSelectorParser sizeSelectors = new SizeSelectorParser(preference);
@@ -183,6 +217,7 @@ public class CameraView {
         setVideoMaxDuration(videoMaxDuration);
         setVideoBitRate(videoBitRate);
         setAutoFocusResetDelay(autoFocusResetDelay);
+        setPreviewFrameRate(videoFrameRate);
 
         // Apply filters
         //setFilter(filters.getFilter());
@@ -474,6 +509,7 @@ public class CameraView {
         setVideoMaxDuration(oldEngine.getVideoMaxDuration());
         setVideoBitRate(oldEngine.getVideoBitRate());
         setAutoFocusResetDelay(oldEngine.getAutoFocusResetDelay());
+        setPreviewFrameRate(oldEngine.getPreviewFrameRate());
     }
 
     /**
@@ -899,6 +935,30 @@ public class CameraView {
     @SuppressWarnings("unused")
     public int getVideoBitRate() {
         return mCameraEngine.getVideoBitRate();
+    }
+
+    /**
+     * Sets the preview frame rate in frames per second.
+     * This rate will be used, for example, by the frame processor and in video
+     * snapshot taken through {@link #takeVideo(File)}.
+     *
+     * A value of 0F will restore the rate to a default value.
+     *
+     * @param frameRate desired frame rate
+     */
+    public void setPreviewFrameRate(float frameRate) {
+        mCameraEngine.setPreviewFrameRate(frameRate);
+    }
+
+    /**
+     * Returns the current preview frame rate.
+     * This can return 0F if no frame rate was set.
+     *
+     * @see #setPreviewFrameRate(float)
+     * @return current frame rate
+     */
+    public float getPreviewFrameRate() {
+        return mCameraEngine.getPreviewFrameRate();
     }
 
     /**

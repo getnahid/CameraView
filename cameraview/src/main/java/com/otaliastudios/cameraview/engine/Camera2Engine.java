@@ -20,6 +20,7 @@ import android.media.Image;
 import android.media.ImageReader;
 import android.os.Build;
 import android.util.Pair;
+import android.util.Range;
 import android.util.Rational;
 import android.view.Surface;
 import android.view.SurfaceHolder;
@@ -831,6 +832,7 @@ public class Camera2Engine extends CameraEngine implements ImageReader.OnImageAv
         // Unlike Camera1, the correct formula seems to be deviceOrientation,
         // which means offset(Reference.BASE, Reference.OUTPUT, Axis.ABSOLUTE).
         stub.rotation = getAngles().offset(Reference.BASE, Reference.OUTPUT, Axis.ABSOLUTE);
+        stub.videoFrameRate = Math.round(mPreviewFrameRate);
         LOG.i("onTakeVideoSnapshot", "rotation:", stub.rotation, "size:", stub.size);
 
         // Start.
@@ -913,6 +915,7 @@ public class Camera2Engine extends CameraEngine implements ImageReader.OnImageAv
         applyHdr(builder, Hdr.OFF);
         applyZoom(builder, 0F);
         applyExposureCorrection(builder, 0F);
+        applyPreviewFrameRate(builder, 0F);
 
         if (oldBuilder != null) {
             // We might be in a metering operation, or the old builder might have some special
@@ -1250,6 +1253,55 @@ public class Camera2Engine extends CameraEngine implements ImageReader.OnImageAv
     public void setPlaySounds(boolean playSounds) {
         mPlaySounds = playSounds;
         mPlaySoundsOp.end(null);
+    }
+
+    @Override public void setPreviewFrameRate(float previewFrameRate) {
+        final float oldPreviewFrameRate = mPreviewFrameRate;
+        mPreviewFrameRate = previewFrameRate;
+        mHandler.run(new Runnable() {
+            @Override
+            public void run() {
+                if (getEngineState() == STATE_STARTED) {
+                    if (applyPreviewFrameRate(mRepeatingRequestBuilder, oldPreviewFrameRate)) {
+                        applyRepeatingRequestBuilder();
+                    }
+                }
+                mPreviewFrameRateOp.end(null);
+            }
+        });
+    }
+
+    @SuppressWarnings("WeakerAccess")
+    protected boolean applyPreviewFrameRate(@NonNull CaptureRequest.Builder builder,
+                                            float oldPreviewFrameRate) {
+        //noinspection unchecked
+        Range<Integer>[] fallback = new Range[]{};
+        Range<Integer>[] fpsRanges = readCharacteristic(
+                CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES,
+                fallback);
+        if (mPreviewFrameRate == 0F) {
+            // 0F is a special value. Fallback to a reasonable default.
+            for (Range<Integer> fpsRange : fpsRanges) {
+                if (fpsRange.contains(30) || fpsRange.contains(24)) {
+                    builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange);
+                    return true;
+                }
+            }
+        } else {
+            // If out of boundaries, adjust it.
+            mPreviewFrameRate = Math.min(mPreviewFrameRate,
+                    mCameraOptions.getPreviewFrameRateMaxValue());
+            mPreviewFrameRate = Math.max(mPreviewFrameRate,
+                    mCameraOptions.getPreviewFrameRateMinValue());
+            for (Range<Integer> fpsRange : fpsRanges) {
+                if (fpsRange.contains(Math.round(mPreviewFrameRate))) {
+                    builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange);
+                    return true;
+                }
+            }
+        }
+        mPreviewFrameRate = oldPreviewFrameRate;
+        return false;
     }
 
     //endregion
