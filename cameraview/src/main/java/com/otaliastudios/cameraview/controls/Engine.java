@@ -23,7 +23,7 @@ public enum Engine implements Control {
      */
     CAMERA2(1);
 
-    final static Engine DEFAULT = CAMERA2;
+    final static Engine DEFAULT = CAMERA1;
 
     private int value;
 

@@ -601,7 +601,7 @@ public abstract class CameraEngine implements
                     @NonNull
                     @Override
                     public Task<Void> then(@Nullable Void aVoid) {
-                        return startPreview();
+                        return startPreview(true);
                     }
                 });
             }

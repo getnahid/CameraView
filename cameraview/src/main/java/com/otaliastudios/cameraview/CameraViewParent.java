@@ -284,7 +284,7 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
      * However, in tests, we might want to create the preview right after constructor.
      */
     @VisibleForTesting
-    void doInstantiatePreview() {
+    public void doInstantiatePreview() {
         LOG.w("doInstantiateEngine:", "instantiating. preview:", mPreview);
         mCameraPreview = instantiatePreview(mPreview, getContext(), this);
         LOG.w("doInstantiateEngine:", "instantiated. preview:",
