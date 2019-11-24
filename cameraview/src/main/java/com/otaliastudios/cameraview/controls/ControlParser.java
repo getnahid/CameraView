@@ -48,6 +48,10 @@ public class ControlParser {
         this.engine = preference.getInt(KEY_CAMERA_ENGINE, Engine.DEFAULT.value());
     }
 
+    public void setFacing(Facing facing){
+        preference.edit().putInt(KEY_CAMERA_FACING, facing.value()).apply();
+    }
+
     public void setToDefault(Context context){
         this.preview = Preview.DEFAULT.value();
         this.facing = Facing.DEFAULT(context).value();
@@ -70,6 +74,34 @@ public class ControlParser {
         preference.edit().putInt(KEY_CAMERA_AUDIO, audio).apply();
         preference.edit().putInt(KEY_CAMERA_VIDEO_CODEC, videoCodec).apply();
     }
+
+    public static String getDefaultSetting(String key, Context context){
+        switch (key){
+            case KEY_CAMERA_FACING:
+                return Facing.DEFAULT(context).toString();
+//            case KEY_CORP_OUTPUT:
+//                return "false";
+            case KEY_CAMERA_FLASH:
+                return Flash.DEFAULT.toString();
+            case KEY_CAMERA_WHITE_BALANCE:
+                return WhiteBalance.DEFAULT.toString();
+//            case KEY_VIDEO_QUALITY:
+//                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+//                    return VideoQuality.MAX_720P.toString();
+//                } else{
+//                    return VideoQuality.HIGHEST.toString();
+//                }
+//            case KEY_SHUTTER_SOUND:
+//                return ShutterSound.DEFAULT.toString();
+            case KEY_CAMERA_HDR:
+                return Hdr.DEFAULT.toString();
+            case KEY_CAMERA_AUDIO:
+                return Audio.DEFAULT.toString();
+        }
+
+        return "";
+    }
+
 
     @NonNull
     public Preview getPreview() {

@@ -327,7 +327,7 @@ public class Camera2Engine extends CameraEngine implements ImageReader.OnImageAv
     @EngineThread
     @Override
     protected void onPreviewStreamSizeChanged() {
-        restartBind();
+        //restartBind();
     }
 
     @EngineThread

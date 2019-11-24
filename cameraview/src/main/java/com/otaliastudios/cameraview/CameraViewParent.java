@@ -58,6 +58,14 @@ import static android.view.View.MeasureSpec.UNSPECIFIED;
 import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 
 public class CameraViewParent extends FrameLayout implements LifecycleObserver {
+    public interface CameraParentCallback {
+
+        /**
+         * Called when the surface is available.
+         */
+        void onSurfaceAvailableAndOnBinded();
+    }
+
     // Gestures
     @VisibleForTesting PinchGestureFinder mPinchGestureFinder;
     @VisibleForTesting TapGestureFinder mTapGestureFinder;
@@ -90,6 +98,14 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
         mCameraEngine = cameraView.getCameraEngine();
         mCameraCallbacks = cameraView.getCameraCallbacks();
         initialize(context);
+    }
+
+    public void setParentCallback(CameraParentCallback cameraParentCallback) {
+        mCameraEngine.setCameraParentListener(cameraParentCallback);
+    }
+
+    public void removeParentCallBack(){
+        mCameraEngine.setCameraParentListener(null);
     }
 
     public CameraViewParent(@NonNull Context context, @Nullable AttributeSet attrs) {

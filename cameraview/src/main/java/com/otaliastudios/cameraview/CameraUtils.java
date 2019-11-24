@@ -354,5 +354,13 @@ public class CameraUtils {
         return inSampleSize;
     }
 
+    public static boolean isUriString(String path) {
+        if (path != null && path.contains("content://")) {
+            return true;
+        }
+
+        return false;
+    }
+
 
 }

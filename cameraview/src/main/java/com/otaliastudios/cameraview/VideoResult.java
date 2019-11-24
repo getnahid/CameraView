@@ -11,6 +11,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import java.io.File;
+import java.io.FileDescriptor;
 
 /**
  * Wraps the result of a video recording started by {@link CameraView#takeVideo(File)}.
@@ -30,6 +31,7 @@ public class VideoResult {
         public int rotation;
         public Size size;
         public File file;
+        public FileDescriptor fileDescriptor;
         public Facing facing;
         public VideoCodec videoCodec;
         public Audio audio;

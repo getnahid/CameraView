@@ -14,12 +14,14 @@ import androidx.annotation.VisibleForTesting;
 import com.google.android.gms.tasks.Continuation;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.SuccessContinuation;
 import com.google.android.gms.tasks.Task;
 import com.google.android.gms.tasks.TaskCompletionSource;
 import com.otaliastudios.cameraview.CameraException;
 import com.otaliastudios.cameraview.CameraLogger;
 import com.otaliastudios.cameraview.CameraOptions;
+import com.otaliastudios.cameraview.CameraViewParent;
 import com.otaliastudios.cameraview.PictureResult;
 import com.otaliastudios.cameraview.VideoResult;
 import com.otaliastudios.cameraview.controls.Audio;
@@ -140,6 +142,7 @@ public abstract class CameraEngine implements
         void dispatchError(CameraException exception);
         void dispatchOnVideoRecordingStart();
         void dispatchOnVideoRecordingEnd();
+        void dispatchOnCameraBinded();
     }
 
     private static final String TAG = CameraEngine.class.getSimpleName();
@@ -194,6 +197,7 @@ public abstract class CameraEngine implements
     // in REF_VIEW, for consistency with SizeSelectors
     private int mSnapshotMaxHeight = Integer.MAX_VALUE;
     private Overlay overlay;
+    private CameraViewParent.CameraParentCallback cameraParentCallback;
 
     // Steps
     private final Step.Callback mStepCallback = new Step.Callback() {
@@ -513,18 +517,11 @@ public abstract class CameraEngine implements
     //endregion
 
     //region Start & Stop preview
-
     @NonNull
     @EngineThread
-    private Task<Void> startPreview() {
-       return startPreview(false);
-    }
-
-    @NonNull
-    @EngineThread
-    public Task<Void> startPreview(boolean canPreview) {
+    public Task<Void> startPreview() {
         LOG.i("startPreview", "canStartPreview:", canStartPreview());
-        if (canStartPreview() && canPreview) {
+        if (canStartPreview()) {
             mPreviewStep.doStart(false, new Callable<Task<Void>>() {
                 @Override
                 public Task<Void> call() {
@@ -593,7 +590,7 @@ public abstract class CameraEngine implements
      */
     @Override
     public final void onSurfaceAvailable() {
-        LOG.i("onSurfaceAvailable:", "Size is", getPreviewSurfaceSize(Reference.VIEW));
+        LOG.i("onSurfaceAvailableAndOnBinded:", "Size is", getPreviewSurfaceSize(Reference.VIEW));
         mHandler.run(new Runnable() {
             @Override
             public void run() {
@@ -601,7 +598,14 @@ public abstract class CameraEngine implements
                     @NonNull
                     @Override
                     public Task<Void> then(@Nullable Void aVoid) {
-                        return startPreview(true);
+                        return startPreview().addOnSuccessListener(new OnSuccessListener<Void>() {
+                            @Override
+                            public void onSuccess(Void aVoid) {
+                                if(cameraParentCallback != null){
+                                    cameraParentCallback.onSurfaceAvailableAndOnBinded();
+                                }
+                            }
+                        });
                     }
                 });
             }
@@ -704,11 +708,16 @@ public abstract class CameraEngine implements
     protected final void restart() {
         LOG.i("Restart:", "calling stop and start");
         stop();
-        start();
+        start(true);
     }
 
     @NonNull
     public Task<Void> start() {
+        return start(false);
+    }
+
+    @NonNull
+    public Task<Void> start(final boolean showPreview) {
         LOG.i("Start:", "posting runnable. State:", getEngineState());
         final TaskCompletionSource<Void> outTask = new TaskCompletionSource<>();
         mHandler.run(new Runnable() {
@@ -737,11 +746,12 @@ public abstract class CameraEngine implements
                                     outTask.trySetResult(null);
                                     return startBind();
                                 }
-                            }).onSuccessTask(mHandler.getExecutor(), new SuccessContinuation<Void, Void>() {
-                                @NonNull
+                            }).addOnSuccessListener(new OnSuccessListener<Void>() {
                                 @Override
-                                public Task<Void> then(@Nullable Void aVoid) {
-                                    return startPreview();
+                                public void onSuccess(Void aVoid) {
+                                    if(showPreview){
+                                        startPreview();
+                                    }
                                 }
                             });
                         }
@@ -1193,7 +1203,7 @@ public abstract class CameraEngine implements
         return mVideoRecorder != null && mVideoRecorder.isRecording();
     }
 
-    public final void takeVideo(final @NonNull VideoResult.Stub stub, final @NonNull File file) {
+    public final void takeVideo(final @NonNull VideoResult.Stub stub) {
         LOG.v("takeVideo", "scheduling");
         mHandler.run(new Runnable() {
             @Override
@@ -1205,7 +1215,6 @@ public abstract class CameraEngine implements
                 if (mMode == Mode.PICTURE) {
                     throw new IllegalStateException("Can't record video while in PICTURE mode");
                 }
-                stub.file = file;
                 stub.isSnapshot = false;
                 stub.videoCodec = mVideoCodec;
                 stub.location = mLocation;
@@ -1444,7 +1453,7 @@ public abstract class CameraEngine implements
     @EngineThread
     @NonNull
     @SuppressWarnings("WeakerAccess")
-    protected final Size computePreviewStreamSize() {
+    public final Size computePreviewStreamSize() {
         @NonNull List<Size> previewSizes = getPreviewStreamAvailableSizes();
         // These sizes come in REF_SENSOR. Since there is an external selector involved,
         // we must convert all of them to REF_VIEW, then flip back when returning.
@@ -1495,6 +1504,10 @@ public abstract class CameraEngine implements
         if (flip) result = result.flip();
         LOG.i("computePreviewStreamSize:", "result:", result, "flip:", flip);
         return result;
+    }
+
+    public void setCameraParentListener(CameraViewParent.CameraParentCallback cameraParentCallback) {
+        this.cameraParentCallback = cameraParentCallback;
     }
 
     //endregion

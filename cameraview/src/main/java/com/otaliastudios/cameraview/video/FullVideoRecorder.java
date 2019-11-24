@@ -203,7 +203,13 @@ public abstract class FullVideoRecorder extends VideoRecorder {
                     (float) stub.location.getLatitude(),
                     (float) stub.location.getLongitude());
         }
-        mMediaRecorder.setOutputFile(stub.file.getAbsolutePath());
+
+        if(stub.fileDescriptor != null){
+            mMediaRecorder.setOutputFile(stub.fileDescriptor);
+        }else{
+            mMediaRecorder.setOutputFile(stub.file.getAbsolutePath());
+        }
+
         mMediaRecorder.setOrientationHint(stub.rotation);
         mMediaRecorder.setMaxFileSize(stub.maxSize);
         mMediaRecorder.setMaxDuration(stub.maxDuration);

@@ -12,9 +12,11 @@ import android.content.pm.PackageManager;
 import android.graphics.PointF;
 import android.location.Location;
 import android.media.MediaActionSound;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.ParcelFileDescriptor;
 import android.preference.PreferenceManager;
 
 import androidx.annotation.NonNull;
@@ -51,6 +53,7 @@ import com.otaliastudios.cameraview.size.SizeSelectorParser;
 import com.otaliastudios.cameraview.size.SizeSelectors;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -95,6 +98,7 @@ public class CameraView {
     private WorkerHandler mFrameProcessorsHandler;
     private Context context;
     private CameraViewParent cameraViewParent;
+    private ControlParser controlParser;
     @VisibleForTesting OverlayLayout mOverlayLayout;
 
     public static final String KEY_CAMERA_PLAY_SOUND = "CameraView_cameraPlaySounds";
@@ -117,6 +121,10 @@ public class CameraView {
         initialize(context);
     }
 
+    public ControlParser getControlParser(){
+        return controlParser;
+    }
+
 //    public CameraView(@NonNull Context context, @Nullable AttributeSet attrs) {
 //        super(context, attrs);
 //        initialize(context, attrs);
@@ -129,14 +137,14 @@ public class CameraView {
         //setWillNotDraw(false);
         //TypedArray a = context.getTheme().obtainStyledAttributes(attrs, R.styleable.CameraView, 0, 0);
         preference = PreferenceManager.getDefaultSharedPreferences(context);
-        ControlParser controls = new ControlParser(context);
+        controlParser = new ControlParser(context);
 
         // Self managed
         boolean playSounds = preference.getBoolean(KEY_CAMERA_PLAY_SOUND, DEFAULT_PLAY_SOUNDS);
         boolean useDeviceOrientation = preference.getBoolean(KEY_CAMERA_DEVICE_ORIENTATION, DEFAULT_USE_DEVICE_ORIENTATION);
-        mExperimental = preference.getBoolean(KEY_CAMERA_EXPERIMENTAL, false);
+        mExperimental = preference.getBoolean(KEY_CAMERA_EXPERIMENTAL, true);
         //mPreview = controls.getPreview();
-        mEngine = controls.getEngine();
+        mEngine = controlParser.getEngine();
 
         // Camera engine params
         //int gridColor = a.getColor(R.styleable.CameraView_cameraGridColor, GridLinesLayout.DEFAULT_COLOR);
@@ -171,18 +179,18 @@ public class CameraView {
 
         // Apply camera engine params
         // Adding new ones? See setEngine().
-        setFacing(controls.getFacing());
-        setFlash(controls.getFlash());
-        setMode(controls.getMode());
-        setWhiteBalance(controls.getWhiteBalance());
-        setHdr(controls.getHdr());
-        setAudio(controls.getAudio());
+        setFacing(controlParser.getFacing());
+        setFlash(controlParser.getFlash());
+        setMode(controlParser.getMode());
+        setWhiteBalance(controlParser.getWhiteBalance());
+        setHdr(controlParser.getHdr());
+        setAudio(controlParser.getAudio());
         setAudioBitRate(audioBitRate);
         setPictureSize(sizeSelectors.getPictureSizeSelector());
         setPictureMetering(pictureMetering);
         setPictureSnapshotMetering(pictureSnapshotMetering);
         setVideoSize(sizeSelectors.getVideoSizeSelector());
-        setVideoCodec(controls.getVideoCodec());
+        setVideoCodec(controlParser.getVideoCodec());
         setVideoMaxSize(videoMaxSize);
         setVideoMaxDuration(videoMaxDuration);
         setVideoBitRate(videoBitRate);
@@ -673,10 +681,12 @@ public class CameraView {
         Facing facing = mCameraEngine.getFacing();
         switch (facing) {
             case BACK:
+                controlParser.setFacing(Facing.FRONT);
                 setFacing(Facing.FRONT);
                 break;
 
             case FRONT:
+                controlParser.setFacing(Facing.BACK);
                 setFacing(Facing.BACK);
                 break;
         }
@@ -1053,7 +1063,20 @@ public class CameraView {
      */
     public void takeVideo(@NonNull File file) {
         VideoResult.Stub stub = new VideoResult.Stub();
-        mCameraEngine.takeVideo(stub, file);
+
+        if(CameraUtils.isUriString(file.getAbsolutePath())){
+            ParcelFileDescriptor descriptor = null;
+            try {
+                descriptor = context.getContentResolver().openFileDescriptor(Uri.parse(file.getAbsolutePath()), "rwt");
+                stub.fileDescriptor = descriptor.getFileDescriptor();
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            }
+        } else {
+            stub.file = file;
+        }
+
+        mCameraEngine.takeVideo(stub);
 //        mUiHandler.post(new Runnable() {
 //            @Override
 //            public void run() {
@@ -1442,6 +1465,19 @@ public class CameraView {
                 public void run() {
                     for (CameraListener listener : mListeners) {
                         listener.onCameraOpened(options);
+                    }
+                }
+            });
+        }
+
+        @Override
+        public void dispatchOnCameraBinded() {
+            mLogger.i("dispatchOnCameraBinded");
+            mUiHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    for (CameraListener listener : mListeners) {
+                        listener.onCameraBinded();
                     }
                 }
             });
