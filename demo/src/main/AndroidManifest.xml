@@ -17,7 +17,6 @@
 
         <activity
             android:name=".CameraActivity"
-            android:theme="@style/Theme.MainActivity"
             android:configChanges="screenLayout|keyboardHidden"
             android:hardwareAccelerated="true">
             <intent-filter>
@@ -26,10 +25,23 @@
             </intent-filter>
         </activity>
 
-        <activity android:name=".PicturePreviewActivity" />
+        <activity
+            android:name=".PicturePreviewActivity"
+            android:label="Picture Preview" />
 
-        <activity android:name=".VideoPreviewActivity"/>
-        <service android:name=".KeyDetectService" />
+        <activity
+            android:name=".VideoPreviewActivity"
+            android:label="Video Preview" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.provider"
+            android:grantUriPermissions="true"
+            android:exported="false">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/filepaths" />
+        </provider>
 
     </application>
 

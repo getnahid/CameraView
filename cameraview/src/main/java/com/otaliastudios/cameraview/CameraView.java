@@ -32,6 +32,7 @@ import com.otaliastudios.cameraview.controls.Flash;
 import com.otaliastudios.cameraview.controls.Grid;
 import com.otaliastudios.cameraview.controls.Hdr;
 import com.otaliastudios.cameraview.controls.Mode;
+import com.otaliastudios.cameraview.controls.PictureFormat;
 import com.otaliastudios.cameraview.controls.Preview;
 import com.otaliastudios.cameraview.controls.VideoCodec;
 import com.otaliastudios.cameraview.controls.WhiteBalance;
@@ -189,6 +190,7 @@ public class CameraView {
         setPictureSize(sizeSelectors.getPictureSizeSelector());
         setPictureMetering(pictureMetering);
         setPictureSnapshotMetering(pictureSnapshotMetering);
+        setPictureFormat(controls.getPictureFormat());
         setVideoSize(sizeSelectors.getVideoSizeSelector());
         setVideoCodec(controlParser.getVideoCodec());
         setVideoMaxSize(videoMaxSize);
@@ -416,6 +418,8 @@ public class CameraView {
             //setPreview((Preview) control);
         } else if (control instanceof Engine) {
             setEngine((Engine) control);
+        } else if (control instanceof PictureFormat) {
+            setPictureFormat((PictureFormat) control);
         }
     }
 
@@ -450,6 +454,8 @@ public class CameraView {
             return (T) null;//getPreview();
         } else if (controlClass == Engine.class) {
             return (T) getEngine();
+        } else if (controlClass == PictureFormat.class) {
+            return (T) getPictureFormat();
         } else {
             throw new IllegalArgumentException("Unknown control class: " + controlClass);
         }
@@ -481,6 +487,7 @@ public class CameraView {
         setAudio(oldEngine.getAudio());
         setAudioBitRate(oldEngine.getAudioBitRate());
         setPictureSize(oldEngine.getPictureSizeSelector());
+        setPictureFormat(oldEngine.getPictureFormat());
         setVideoSize(oldEngine.getVideoSizeSelector());
         setVideoCodec(oldEngine.getVideoCodec());
         setVideoMaxSize(oldEngine.getVideoMaxSize());
@@ -885,6 +892,29 @@ public class CameraView {
     public boolean getPictureSnapshotMetering() {
         return mCameraEngine.getPictureSnapshotMetering();
     }
+
+    /**
+     * Sets the format for pictures taken with {@link #takePicture()}. This format does not apply
+     * to picture snapshots taken with {@link #takePictureSnapshot()}.
+     * The {@link PictureFormat#JPEG} is always supported - for other values, please check
+     * the {@link CameraOptions#getSupportedPictureFormats()} value.
+     *
+     * @param pictureFormat new format
+     */
+    public void setPictureFormat(@NonNull PictureFormat pictureFormat) {
+        mCameraEngine.setPictureFormat(pictureFormat);
+    }
+
+    /**
+     * Returns the current picture format.
+     * @see #setPictureFormat(PictureFormat)
+     * @return the picture format
+     */
+    @NonNull
+    public PictureFormat getPictureFormat() {
+        return mCameraEngine.getPictureFormat();
+    }
+
 
     /**
      * Sets a capture size selector for video mode.

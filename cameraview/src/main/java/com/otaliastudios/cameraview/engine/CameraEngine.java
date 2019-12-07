@@ -23,6 +23,8 @@ import com.otaliastudios.cameraview.CameraLogger;
 import com.otaliastudios.cameraview.CameraOptions;
 import com.otaliastudios.cameraview.CameraViewParent;
 import com.otaliastudios.cameraview.PictureResult;
+import com.otaliastudios.cameraview.controls.PictureFormat;
+import com.otaliastudios.cameraview.overlay.Overlay;
 import com.otaliastudios.cameraview.VideoResult;
 import com.otaliastudios.cameraview.controls.Audio;
 import com.otaliastudios.cameraview.controls.Facing;
@@ -168,6 +170,7 @@ public abstract class CameraEngine implements
     @SuppressWarnings("WeakerAccess") protected WhiteBalance mWhiteBalance;
     @SuppressWarnings("WeakerAccess") protected VideoCodec mVideoCodec;
     @SuppressWarnings("WeakerAccess") protected Hdr mHdr;
+    @SuppressWarnings("WeakerAccess") protected PictureFormat mPictureFormat;
     @SuppressWarnings("WeakerAccess") protected Location mLocation;
     @SuppressWarnings("WeakerAccess") protected float mZoomValue;
     @SuppressWarnings("WeakerAccess") protected float mExposureCorrectionValue;
@@ -1036,6 +1039,11 @@ public abstract class CameraEngine implements
         return mLocation;
     }
 
+    @NonNull
+    public final PictureFormat getPictureFormat() {
+        return mPictureFormat;
+    }
+
     public final float getZoomValue() {
         return mZoomValue;
     }
@@ -1125,6 +1133,9 @@ public abstract class CameraEngine implements
     // If closed, keep. If opened, check supported and apply.
     public abstract void setLocation(@Nullable Location location);
 
+    // If closed, keep. If opened, check supported and apply.
+    public abstract void setPictureFormat(@NonNull PictureFormat pictureFormat);
+
     public abstract void startAutoFocus(@Nullable Gesture gesture, @NonNull PointF point);
 
     public abstract void setPlaySounds(boolean playSounds);
@@ -1141,11 +1152,11 @@ public abstract class CameraEngine implements
 
     /* not final for tests */
     public void takePicture(final @NonNull PictureResult.Stub stub) {
-        LOG.v("takePicture", "scheduling");
+        LOG.i("takePicture", "scheduling");
         mHandler.run(new Runnable() {
             @Override
             public void run() {
-                LOG.v("takePicture", "performing. BindState:", getBindState(),
+                LOG.i("takePicture", "performing. BindState:", getBindState(),
                         "isTakingPicture:", isTakingPicture());
                 if (mMode == Mode.VIDEO) {
                     throw new IllegalStateException("Can't take hq pictures while in VIDEO mode");
@@ -1155,6 +1166,7 @@ public abstract class CameraEngine implements
                 stub.isSnapshot = false;
                 stub.location = mLocation;
                 stub.facing = mFacing;
+                stub.format = mPictureFormat;
                 onTakePicture(stub, mPictureMetering);
             }
         });
@@ -1166,17 +1178,18 @@ public abstract class CameraEngine implements
      * @param stub a picture stub
      */
     public final void takePictureSnapshot(final @NonNull PictureResult.Stub stub) {
-        LOG.v("takePictureSnapshot", "scheduling");
+        LOG.i("takePictureSnapshot", "scheduling");
         mHandler.run(new Runnable() {
             @Override
             public void run() {
-                LOG.v("takePictureSnapshot", "performing. BindState:",
+                LOG.i("takePictureSnapshot", "performing. BindState:",
                         getBindState(), "isTakingPicture:", isTakingPicture());
                 if (getBindState() < STATE_STARTED) return;
                 if (isTakingPicture()) return;
                 stub.location = mLocation;
                 stub.isSnapshot = true;
                 stub.facing = mFacing;
+                stub.format = PictureFormat.JPEG;
                 // Leave the other parameters to subclasses.
                 //noinspection ConstantConditions
                 AspectRatio ratio = AspectRatio.of(getPreviewSurfaceSize(Reference.OUTPUT));
@@ -1211,7 +1224,7 @@ public abstract class CameraEngine implements
         mHandler.run(new Runnable() {
             @Override
             public void run() {
-                LOG.v("takeVideo", "performing. BindState:", getBindState(),
+                LOG.i("takeVideo", "performing. BindState:", getBindState(),
                         "isTakingVideo:", isTakingVideo());
                 if (getBindState() < STATE_STARTED) return;
                 if (isTakingVideo()) return;
@@ -1238,11 +1251,11 @@ public abstract class CameraEngine implements
      */
     public final void takeVideoSnapshot(@NonNull final VideoResult.Stub stub,
                                         @NonNull final File file) {
-        LOG.v("takeVideoSnapshot", "scheduling");
+        LOG.i("takeVideoSnapshot", "scheduling");
         mHandler.run(new Runnable() {
             @Override
             public void run() {
-                LOG.v("takeVideoSnapshot", "performing. BindState:", getBindState(),
+                LOG.i("takeVideoSnapshot", "performing. BindState:", getBindState(),
                         "isTakingVideo:", isTakingVideo());
                 if (getBindState() < STATE_STARTED) return;
                 if (isTakingVideo()) return;

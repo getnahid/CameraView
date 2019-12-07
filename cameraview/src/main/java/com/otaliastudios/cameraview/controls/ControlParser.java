@@ -21,6 +21,7 @@ public class ControlParser {
     private int audio;
     private int videoCodec;
     private int engine;
+    private int pictureFormat;
     private SharedPreferences preference;
 
     public static final String KEY_CAMERA_PREVIEW = "CameraView_cameraPreview";
@@ -33,6 +34,7 @@ public class ControlParser {
     public static final String KEY_CAMERA_AUDIO = "CameraView_cameraAudio";
     public static final String KEY_CAMERA_VIDEO_CODEC = "CameraView_cameraVideoCodec";
     public static final String KEY_CAMERA_ENGINE = "CameraView_cameraEngine";
+    public static final String KEY_CAMERA_PICTURE_FORMAT = "CameraView_cameraPictureFormat";
 
     public ControlParser(@NonNull Context context) {
         preference = PreferenceManager.getDefaultSharedPreferences(context);
@@ -45,6 +47,7 @@ public class ControlParser {
         this.hdr = preference.getInt(KEY_CAMERA_HDR, Hdr.DEFAULT.value());
         this.audio = preference.getInt(KEY_CAMERA_AUDIO, Audio.DEFAULT.value());
         this.videoCodec = preference.getInt(KEY_CAMERA_VIDEO_CODEC, VideoCodec.DEFAULT.value());
+        this.pictureFormat = preference.getInt(KEY_CAMERA_PICTURE_FORMAT, PictureFormat.DEFAULT.value());
 
 //        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.P){
 //            this.engine = preference.getInt(KEY_CAMERA_ENGINE, Engine.CAMERA2.value());
@@ -135,5 +138,10 @@ public class ControlParser {
     @NonNull
     public Engine getEngine() {
         return Engine.fromValue(engine);
+    }
+
+    @NonNull
+    public PictureFormat getPictureFormat() {
+        return PictureFormat.fromValue(pictureFormat);
     }
 }
