@@ -407,7 +407,7 @@ public class KeyDetectService extends Service implements SurfaceHolder.Callback 
     }
 
     public void startPreview(){
-        camera.getCameraEngine().startPreview(true);
+        camera.getCameraEngine().startPreview();
     }
 
     public void stopPreview(){
