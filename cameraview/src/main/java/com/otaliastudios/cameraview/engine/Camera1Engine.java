@@ -348,6 +348,7 @@ public class Camera1Engine extends CameraEngine implements
     protected void onTakeVideo(@NonNull VideoResult.Stub stub) {
         stub.rotation = getAngles().offset(Reference.SENSOR, Reference.OUTPUT,
                 Axis.RELATIVE_TO_SENSOR);
+        mCaptureSize = computeCaptureSize();
         stub.size = getAngles().flip(Reference.SENSOR, Reference.OUTPUT) ? mCaptureSize.flip()
                 : mCaptureSize;
         // Unlock the camera and start recording.

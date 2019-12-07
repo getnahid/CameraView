@@ -116,7 +116,7 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
         mInEditor = isInEditMode();
         if (mInEditor) return;
         setWillNotDraw(false);
-        setBackgroundColor(Color.BLUE);
+        setBackgroundColor(Color.WHITE);
         preference = PreferenceManager.getDefaultSharedPreferences(context);
         // Gestures
         mPinchGestureFinder = new PinchGestureFinder(mCameraCallbacks);

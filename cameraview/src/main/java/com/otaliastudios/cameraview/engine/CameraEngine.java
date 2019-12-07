@@ -506,6 +506,7 @@ public abstract class CameraEngine implements
                     @NonNull
                     @Override
                     public Task<Void> then(@Nullable Void aVoid) {
+                        mCallback.dispatchOnCameraBinded();
                         LOG.w("restartBind", "executing startPreview.");
                         return startPreview();
                     }
@@ -598,6 +599,7 @@ public abstract class CameraEngine implements
                     @NonNull
                     @Override
                     public Task<Void> then(@Nullable Void aVoid) {
+                        mCallback.dispatchOnCameraBinded();
                         return startPreview().addOnSuccessListener(new OnSuccessListener<Void>() {
                             @Override
                             public void onSuccess(Void aVoid) {
@@ -749,6 +751,7 @@ public abstract class CameraEngine implements
                             }).addOnSuccessListener(new OnSuccessListener<Void>() {
                                 @Override
                                 public void onSuccess(Void aVoid) {
+                                    mCallback.dispatchOnCameraBinded();
                                     if(showPreview){
                                         startPreview();
                                     }

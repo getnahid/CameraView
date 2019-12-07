@@ -92,9 +92,9 @@ public class DeviceEncoders {
     @SuppressWarnings("FieldCanBeLocal")
     private final MediaCodecInfo mVideoEncoder;
     @SuppressWarnings("FieldCanBeLocal")
-    private final MediaCodecInfo mAudioEncoder;
-    private final MediaCodecInfo.VideoCapabilities mVideoCapabilities;
-    private final MediaCodecInfo.AudioCapabilities mAudioCapabilities;
+    private MediaCodecInfo mAudioEncoder;
+    private MediaCodecInfo.VideoCapabilities mVideoCapabilities;
+    private MediaCodecInfo.AudioCapabilities mAudioCapabilities;
 
     @SuppressLint("NewApi")
     public DeviceEncoders(int mode,
@@ -107,13 +107,15 @@ public class DeviceEncoders {
         if (ENABLED) {
             List<MediaCodecInfo> encoders = getDeviceEncoders();
             mVideoEncoder = findDeviceEncoder(encoders, videoType, mode, videoOffset);
-            LOG.i("Enabled. Found video encoder:", mVideoEncoder.getName());
-            mAudioEncoder = findDeviceEncoder(encoders, audioType, mode, audioOffset);
-            LOG.i("Enabled. Found audio encoder:", mAudioEncoder.getName());
-            mVideoCapabilities = mVideoEncoder.getCapabilitiesForType(videoType)
-                    .getVideoCapabilities();
-            mAudioCapabilities = mAudioEncoder.getCapabilitiesForType(audioType)
-                    .getAudioCapabilities();
+            if(mVideoEncoder != null){
+                LOG.i("Enabled. Found video encoder:", mVideoEncoder.getName());
+                mAudioEncoder = findDeviceEncoder(encoders, audioType, mode, audioOffset);
+                LOG.i("Enabled. Found audio encoder:", mAudioEncoder.getName());
+                mVideoCapabilities = mVideoEncoder.getCapabilitiesForType(videoType)
+                        .getVideoCapabilities();
+                mAudioCapabilities = mAudioEncoder.getCapabilitiesForType(audioType)
+                        .getAudioCapabilities();
+            }
         } else {
             mVideoEncoder = null;
             mAudioEncoder = null;
@@ -169,7 +171,6 @@ public class DeviceEncoders {
      * @return encoder
      */
     @SuppressLint("NewApi")
-    @NonNull
     @VisibleForTesting
     MediaCodecInfo findDeviceEncoder(@NonNull List<MediaCodecInfo> encoders,
                                      @NonNull String mimeType,
@@ -199,10 +200,13 @@ public class DeviceEncoders {
                 }
             });
         }
+
         if (results.size() < offset + 1) {
             // This should not be a VideoException or AudioException - we want the process
             // to crash here.
-            throw new RuntimeException("No encoders for type:" + mimeType);
+            //throw new RuntimeException("No encoders for type:" + mimeType);
+            ENABLED = false;
+            return null;
         }
         return results.get(offset);
     }

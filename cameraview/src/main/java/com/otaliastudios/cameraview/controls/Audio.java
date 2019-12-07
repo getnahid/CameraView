@@ -1,10 +1,9 @@
 package com.otaliastudios.cameraview.controls;
 
 
-import com.otaliastudios.cameraview.CameraView;
-
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+
+import com.otaliastudios.cameraview.CameraView;
 
 /**
  * Audio values indicate whether to record audio stream when record video.
@@ -12,18 +11,17 @@ import androidx.annotation.Nullable;
  * @see CameraView#setAudio(Audio)
  */
 public enum Audio implements Control {
-
-    /**
-     * No audio.
-     */
-    OFF(0),
-
     /**
      * Audio on. The number of channels depends on the video configuration,
      * on the device capabilities and on the video type (e.g. we default to
      * mono for snapshots).
      */
     ON(1),
+
+    /**
+     * No audio.
+     */
+    OFF(0),
 
     /**
      * Force mono channel audio.

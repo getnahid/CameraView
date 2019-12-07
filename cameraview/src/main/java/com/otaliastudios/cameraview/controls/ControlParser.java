@@ -45,7 +45,12 @@ public class ControlParser {
         this.hdr = preference.getInt(KEY_CAMERA_HDR, Hdr.DEFAULT.value());
         this.audio = preference.getInt(KEY_CAMERA_AUDIO, Audio.DEFAULT.value());
         this.videoCodec = preference.getInt(KEY_CAMERA_VIDEO_CODEC, VideoCodec.DEFAULT.value());
-        this.engine = preference.getInt(KEY_CAMERA_ENGINE, Engine.DEFAULT.value());
+
+//        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.P){
+//            this.engine = preference.getInt(KEY_CAMERA_ENGINE, Engine.CAMERA2.value());
+//        }else {
+            this.engine = preference.getInt(KEY_CAMERA_ENGINE, Engine.DEFAULT.value());
+        //}
     }
 
     public void setFacing(Facing facing){
@@ -62,6 +67,8 @@ public class ControlParser {
         this.hdr = Hdr.DEFAULT.value();
         this.audio = Audio.DEFAULT.value();
         this.videoCodec = VideoCodec.DEFAULT.value();
+
+
         this.engine = Engine.DEFAULT.value();
 
         preference.edit().putInt(KEY_CAMERA_PREVIEW, preview).apply();
@@ -74,34 +81,6 @@ public class ControlParser {
         preference.edit().putInt(KEY_CAMERA_AUDIO, audio).apply();
         preference.edit().putInt(KEY_CAMERA_VIDEO_CODEC, videoCodec).apply();
     }
-
-    public static String getDefaultSetting(String key, Context context){
-        switch (key){
-            case KEY_CAMERA_FACING:
-                return Facing.DEFAULT(context).toString();
-//            case KEY_CORP_OUTPUT:
-//                return "false";
-            case KEY_CAMERA_FLASH:
-                return Flash.DEFAULT.toString();
-            case KEY_CAMERA_WHITE_BALANCE:
-                return WhiteBalance.DEFAULT.toString();
-//            case KEY_VIDEO_QUALITY:
-//                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-//                    return VideoQuality.MAX_720P.toString();
-//                } else{
-//                    return VideoQuality.HIGHEST.toString();
-//                }
-//            case KEY_SHUTTER_SOUND:
-//                return ShutterSound.DEFAULT.toString();
-            case KEY_CAMERA_HDR:
-                return Hdr.DEFAULT.toString();
-            case KEY_CAMERA_AUDIO:
-                return Audio.DEFAULT.toString();
-        }
-
-        return "";
-    }
-
 
     @NonNull
     public Preview getPreview() {
@@ -147,6 +126,10 @@ public class ControlParser {
     @NonNull
     public VideoCodec getVideoCodec() {
         return VideoCodec.fromValue(videoCodec);
+    }
+
+    public void setEngine(int engine) {
+        preference.edit().putInt(KEY_CAMERA_ENGINE, engine).apply();
     }
 
     @NonNull

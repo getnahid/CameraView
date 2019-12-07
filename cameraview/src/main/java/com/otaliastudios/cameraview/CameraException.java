@@ -51,6 +51,8 @@ public class CameraException extends RuntimeException {
      */
     public static final int REASON_NO_CAMERA = 6;
 
+    public static final int REASON_CAMERA2ENGINE_SUPPORT_FAILED = 7;
+
     private int reason = REASON_UNKNOWN;
 
     @SuppressWarnings("WeakerAccess")

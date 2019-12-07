@@ -1063,18 +1063,7 @@ public class CameraView {
      */
     public void takeVideo(@NonNull File file) {
         VideoResult.Stub stub = new VideoResult.Stub();
-
-        if(CameraUtils.isUriString(file.getAbsolutePath())){
-            ParcelFileDescriptor descriptor = null;
-            try {
-                descriptor = context.getContentResolver().openFileDescriptor(Uri.parse(file.getAbsolutePath()), "rwt");
-                stub.fileDescriptor = descriptor.getFileDescriptor();
-            } catch (FileNotFoundException e) {
-                e.printStackTrace();
-            }
-        } else {
-            stub.file = file;
-        }
+        stub.file = file;
 
         mCameraEngine.takeVideo(stub);
 //        mUiHandler.post(new Runnable() {
@@ -1084,6 +1073,20 @@ public class CameraView {
 //                if (!mKeepScreenOn) setKeepScreenOn(true);
 //            }
 //        });
+    }
+
+    public void takeVideo(@NonNull String uri) {
+        VideoResult.Stub stub = new VideoResult.Stub();
+
+        ParcelFileDescriptor descriptor = null;
+        try {
+            descriptor = context.getContentResolver().openFileDescriptor(Uri.parse(uri), "rwt");
+            stub.fileDescriptor = descriptor.getFileDescriptor();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        mCameraEngine.takeVideo(stub);
     }
 
     /**

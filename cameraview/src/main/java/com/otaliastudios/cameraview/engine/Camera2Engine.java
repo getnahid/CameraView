@@ -468,6 +468,8 @@ public class Camera2Engine extends CameraEngine implements ImageReader.OnImageAv
             if (mFullVideoPendingStub != null) {
                 Full2VideoRecorder recorder = new Full2VideoRecorder(this, mCameraId);
                 try {
+                    mFullVideoPendingStub.size = getAngles().flip(Reference.SENSOR, Reference.OUTPUT) ?
+                                    mCaptureSize.flip() : mCaptureSize;
                     outputSurfaces.add(recorder.createInputSurface(mFullVideoPendingStub));
                 } catch (Full2VideoRecorder.PrepareException e) {
                     throw new CameraException(e, CameraException.REASON_FAILED_TO_CONNECT);
@@ -533,7 +535,8 @@ public class Camera2Engine extends CameraEngine implements ImageReader.OnImageAv
                 public void onConfigureFailed(@NonNull CameraCaptureSession session) {
                     // This SHOULD be a library error so we throw a RuntimeException.
                     String message = LOG.e("onConfigureFailed! Session", session);
-                    throw new RuntimeException(message);
+                    //throw new RuntimeException(message);
+                    throw  new CameraException(new Throwable(), CameraException.REASON_CAMERA2ENGINE_SUPPORT_FAILED);
                 }
             }, null);
         } catch (CameraAccessException e) {
