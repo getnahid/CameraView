@@ -51,7 +51,9 @@ public class CameraException extends RuntimeException {
      */
     public static final int REASON_NO_CAMERA = 6;
 
-    public static final int REASON_CAMERA2ENGINE_SUPPORT_FAILED = 7;
+    public static final int REASON_CAMERA2ENGINE_SUPPORT_FAILED = 10;
+
+    public static final int REASON_CAMERA_PERMISSION_DENIED_FOR_WINDOW = 11;
 
     private int reason = REASON_UNKNOWN;
 

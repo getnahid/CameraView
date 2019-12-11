@@ -35,7 +35,7 @@ public enum Audio implements Control {
 
     final static Audio DEFAULT = ON;
 
-    private int value;
+    public int value;
 
     Audio(int value) {
         this.value = value;

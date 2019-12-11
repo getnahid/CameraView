@@ -190,7 +190,7 @@ public class CameraView {
         setPictureSize(sizeSelectors.getPictureSizeSelector());
         setPictureMetering(pictureMetering);
         setPictureSnapshotMetering(pictureSnapshotMetering);
-        setPictureFormat(controls.getPictureFormat());
+        setPictureFormat(controlParser.getPictureFormat());
         setVideoSize(sizeSelectors.getVideoSizeSelector());
         setVideoCodec(controlParser.getVideoCodec());
         setVideoMaxSize(videoMaxSize);
@@ -712,6 +712,7 @@ public class CameraView {
      * @param flash desired flash mode.
      */
     public void setFlash(@NonNull Flash flash) {
+        controlParser.setFlash(flash.value);
         mCameraEngine.setFlash(flash);
     }
 
@@ -738,10 +739,12 @@ public class CameraView {
 
         if (audio == getAudio() || isClosed()) {
             // Check did took place, or will happen on start().
+            controlParser.setAudio(audio.value);
             mCameraEngine.setAudio(audio);
 
         } else if (checkPermissions(audio)) {
             // Camera is running. Pass.
+            controlParser.setAudio(audio.value);
             mCameraEngine.setAudio(audio);
 
         } else {

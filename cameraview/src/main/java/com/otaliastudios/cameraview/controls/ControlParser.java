@@ -132,7 +132,18 @@ public class ControlParser {
     }
 
     public void setEngine(int engine) {
+        this.engine = engine;
         preference.edit().putInt(KEY_CAMERA_ENGINE, engine).apply();
+    }
+
+    public void setAudio(int audio) {
+        this.audio = audio;
+        preference.edit().putInt(KEY_CAMERA_AUDIO, audio).apply();
+    }
+
+    public void setFlash(int flash) {
+        this.flash = flash;
+        preference.edit().putInt(KEY_CAMERA_FLASH, flash).apply();
     }
 
     @NonNull

@@ -1,11 +1,10 @@
 package com.otaliastudios.cameraview.controls;
 
 
+import androidx.annotation.NonNull;
+
 import com.otaliastudios.cameraview.CameraOptions;
 import com.otaliastudios.cameraview.CameraView;
-
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 
 /**
  * Flash value indicates the flash mode to be used.
@@ -47,7 +46,7 @@ public enum Flash implements Control {
 
     static final Flash DEFAULT = OFF;
 
-    private int value;
+    public int value;
 
     Flash(int value) {
         this.value = value;
