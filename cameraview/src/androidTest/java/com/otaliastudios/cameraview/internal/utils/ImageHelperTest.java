@@ -12,7 +12,6 @@ import android.graphics.Rect;
 import android.graphics.YuvImage;
 import android.media.Image;
 import android.media.ImageReader;
-import android.opengl.GLES20;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.Surface;
@@ -22,23 +21,22 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import com.otaliastudios.cameraview.BaseTest;
-import com.otaliastudios.cameraview.internal.egl.EglCore;
-import com.otaliastudios.cameraview.internal.egl.EglViewport;
-import com.otaliastudios.cameraview.internal.egl.EglWindowSurface;
-import com.otaliastudios.cameraview.size.AspectRatio;
-import com.otaliastudios.cameraview.size.Size;
+import com.otaliastudios.cameraview.tools.Op;
+import com.otaliastudios.cameraview.tools.SdkExclude;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.io.ByteArrayOutputStream;
-import java.nio.ByteBuffer;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
 
+/**
+ * Starting from API 29, surface.lockCanvas() sets the surface format to RGBA_8888:
+ * https://github.com/aosp-mirror/platform_frameworks_base/blob/android10-release/core/jni/android_view_Surface.cpp#L215-L217 .
+ * For this reason, acquireLatestImage crashes because we requested a different format.
+ */
+@SdkExclude(minSdkVersion = 29)
 @RunWith(AndroidJUnit4.class)
 @SmallTest
 public class ImageHelperTest extends BaseTest {
@@ -47,12 +45,12 @@ public class ImageHelperTest extends BaseTest {
     private Image getImage() {
         ImageReader reader = ImageReader.newInstance(100, 100, ImageFormat.YUV_420_888, 1);
         Surface readerSurface = reader.getSurface();
-        final Op<Image> imageOp = new Op<>(true);
+        final Op<Image> imageOp = new Op<>();
         reader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
             @Override
             public void onImageAvailable(ImageReader reader) {
                 Image image = reader.acquireLatestImage();
-                if (image != null) imageOp.end(image);
+                if (image != null) imageOp.controller().end(image);
             }
         }, new Handler(Looper.getMainLooper()));
 
