@@ -11,40 +11,32 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
-import com.google.android.gms.tasks.Continuation;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
 import com.google.android.gms.tasks.Tasks;
-import com.google.android.gms.tasks.OnFailureListener;
-import com.google.android.gms.tasks.OnSuccessListener;
-import com.google.android.gms.tasks.SuccessContinuation;
-import com.google.android.gms.tasks.Task;
-import com.google.android.gms.tasks.TaskCompletionSource;
 import com.otaliastudios.cameraview.CameraException;
 import com.otaliastudios.cameraview.CameraLogger;
 import com.otaliastudios.cameraview.CameraOptions;
 import com.otaliastudios.cameraview.CameraViewParent;
 import com.otaliastudios.cameraview.PictureResult;
-import com.otaliastudios.cameraview.controls.PictureFormat;
-import com.otaliastudios.cameraview.engine.orchestrator.CameraOrchestrator;
-import com.otaliastudios.cameraview.engine.orchestrator.CameraState;
-import com.otaliastudios.cameraview.engine.orchestrator.CameraStateOrchestrator;
-import com.otaliastudios.cameraview.overlay.Overlay;
 import com.otaliastudios.cameraview.VideoResult;
 import com.otaliastudios.cameraview.controls.Audio;
 import com.otaliastudios.cameraview.controls.Facing;
 import com.otaliastudios.cameraview.controls.Flash;
 import com.otaliastudios.cameraview.controls.Hdr;
 import com.otaliastudios.cameraview.controls.Mode;
+import com.otaliastudios.cameraview.controls.PictureFormat;
 import com.otaliastudios.cameraview.controls.VideoCodec;
 import com.otaliastudios.cameraview.controls.WhiteBalance;
 import com.otaliastudios.cameraview.engine.offset.Angles;
 import com.otaliastudios.cameraview.engine.offset.Reference;
+import com.otaliastudios.cameraview.engine.orchestrator.CameraOrchestrator;
+import com.otaliastudios.cameraview.engine.orchestrator.CameraState;
+import com.otaliastudios.cameraview.engine.orchestrator.CameraStateOrchestrator;
 import com.otaliastudios.cameraview.frame.Frame;
 import com.otaliastudios.cameraview.frame.FrameManager;
 import com.otaliastudios.cameraview.gesture.Gesture;
-import com.otaliastudios.cameraview.internal.utils.Op;
 import com.otaliastudios.cameraview.internal.utils.WorkerHandler;
 import com.otaliastudios.cameraview.overlay.Overlay;
 import com.otaliastudios.cameraview.picture.PictureRecorder;
@@ -1249,7 +1241,7 @@ public abstract class CameraEngine implements
         return mVideoRecorder != null && mVideoRecorder.isRecording();
     }
 
-    public final void takeVideo(final @NonNull VideoResult.Stub stub, final @NonNull File file) {
+    public final void takeVideo(final @NonNull VideoResult.Stub stub) {
         mOrchestrator.scheduleStateful("take video", CameraState.BIND, new Runnable() {
             @Override
             public void run() {
