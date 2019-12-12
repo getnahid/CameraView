@@ -63,7 +63,7 @@ import java.util.concurrent.TimeUnit;
  * 2. Starting the camera. Done by us. See {@link #startEngine()}, {@link #onStartEngine()}.
  * 3. Binding the camera to the surface. Done by us. See {@link #startBind()},
  *    {@link #onStartBind()}
- * 4. Streaming the camera preview. Done by us. See {@link #startPreview()},
+ * 4. Streaming the camera preview. Done by us. See {@link #startPreview(boolean)},
  *    {@link #onStartPreview()}
  *
  * The first two steps can actually happen at the same time, anyway
@@ -360,17 +360,26 @@ public abstract class CameraEngine implements
     public void restart() {
         LOG.i("RESTART:", "scheduled. State:", getState());
         stop(false);
-        start();
+        start(true);
     }
 
     @NonNull
     public Task<Void> start() {
+        return start(false);
+    }
+
+    @NonNull
+    public Task<Void> start(boolean showPreview) {
         LOG.i("START:", "scheduled. State:", getState());
         Task<Void> engine = startEngine();
         startBind();
-        startPreview();
+
+        if(showPreview){
+            startPreview(false);
+        }
         return engine;
     }
+
 
     @NonNull
     public Task<Void> stop(final boolean swallowExceptions) {
@@ -387,7 +396,7 @@ public abstract class CameraEngine implements
         stopPreview(false);
         stopBind(false);
         startBind();
-        return startPreview();
+        return startPreview(false);
     }
 
     @SuppressWarnings("WeakerAccess")
@@ -395,7 +404,7 @@ public abstract class CameraEngine implements
     protected Task<Void> restartPreview() {
         LOG.i("RESTART PREVIEW:", "scheduled. State:", getState());
         stopPreview(false);
-        return startPreview();
+        return startPreview(false);
     }
 
     //endregion
@@ -513,50 +522,21 @@ public abstract class CameraEngine implements
     @EngineThread
     protected abstract Task<Void> onStopBind();
 
-//    @SuppressWarnings("WeakerAccess")
-//    protected void restartBind() {
-//        LOG.i("restartBind", "posting.");
-//        mHandler.run(new Runnable() {
-//            @Override
-//            public void run() {
-//                LOG.w("restartBind", "executing stopPreview.");
-//                stopPreview(false).continueWithTask(mHandler.getExecutor(),
-//                        new Continuation<Void, Task<Void>>() {
-//                    @Override
-//                    public Task<Void> then(@NonNull Task<Void> task) {
-//                        LOG.w("restartBind", "executing stopBind.");
-//                        return stopBind(false);
-//                    }
-//                }).onSuccessTask(mHandler.getExecutor(), new SuccessContinuation<Void, Void>() {
-//                    @NonNull
-//                    @Override
-//                    public Task<Void> then(@Nullable Void aVoid) {
-//                        LOG.w("restartBind", "executing startBind.");
-//                        return startBind();
-//                    }
-//                }).onSuccessTask(mHandler.getExecutor(), new SuccessContinuation<Void, Void>() {
-//                    @NonNull
-//                    @Override
-//                    public Task<Void> then(@Nullable Void aVoid) {
-//                        LOG.w("restartBind", "executing startPreview.");
-//                        return startPreview();
-//                    }
-//                });
-//            }
-//        });
-//    }
-
     //endregion
 
     //region Start & Stop preview
     @NonNull
     @EngineThread
-    public Task<Void> startPreview() {
+    public Task<Void> startPreview(final boolean isSurfaceAvailable) {
         return mOrchestrator.scheduleStateChange(CameraState.BIND, CameraState.PREVIEW,
                 true,
                 new Callable<Task<Void>>() {
             @Override
             public Task<Void> call() {
+                if(isSurfaceAvailable && cameraParentCallback != null){
+                    cameraParentCallback.onSurfaceAvailableAndOnBinded();
+                }
+
                 return onStartPreview();
             }
         });
@@ -575,19 +555,6 @@ public abstract class CameraEngine implements
             }
         });
     }
-
-//    @SuppressWarnings("WeakerAccess")
-//    protected void restartPreview() {
-//        LOG.i("restartPreview", "posting.");
-//        mHandler.run(new Runnable() {
-//            @Override
-//            public void run() {
-//                LOG.i("restartPreview", "executing.");
-//                stopPreview(false);
-//                startPreview();
-//            }
-//        });
-//    }
 
     /**
      * Starts the preview streaming.
@@ -619,7 +586,7 @@ public abstract class CameraEngine implements
     public final void onSurfaceAvailable() {
         LOG.i("onSurfaceAvailable:", "Size is", getPreviewSurfaceSize(Reference.VIEW));
         startBind();
-        startPreview();
+        startPreview(true);
     }
 
     @Override
@@ -628,30 +595,6 @@ public abstract class CameraEngine implements
         stopPreview(false);
         stopBind(false);
     }
-
-//    public final void onSurfaceAvailable() {
-//        LOG.i("onSurfaceAvailableAndOnBinded:", "Size is", getPreviewSurfaceSize(Reference.VIEW));
-//        mHandler.run(new Runnable() {
-//            @Override
-//            public void run() {
-//                startBind().onSuccessTask(mHandler.getExecutor(), new SuccessContinuation<Void, Void>() {
-//                    @NonNull
-//                    @Override
-//                    public Task<Void> then(@Nullable Void aVoid) {
-//                        mCallback.dispatchOnCameraBinded();
-//                        return startPreview().addOnSuccessListener(new OnSuccessListener<Void>() {
-//                            @Override
-//                            public void onSuccess(Void aVoid) {
-//                                if(cameraParentCallback != null){
-//                                    cameraParentCallback.onSurfaceAvailableAndOnBinded();
-//                                }
-//                            }
-//                        });
-//                    }
-//                });
-//            }
-//        });
-//    }
 
     @Override
     public final void onSurfaceChanged() {
@@ -683,176 +626,6 @@ public abstract class CameraEngine implements
      */
     @EngineThread
     protected abstract void onPreviewStreamSizeChanged();
-
-//    @Override
-//    public final void onSurfaceDestroyed() {
-//        LOG.i("onSurfaceDestroyed");
-//        mHandler.run(new Runnable() {
-//            @Override
-//            public void run() {
-//                stopPreview(false).onSuccessTask(mHandler.getExecutor(),
-//                        new SuccessContinuation<Void, Void>() {
-//                    @NonNull
-//                    @Override
-//                    public Task<Void> then(@Nullable Void aVoid) {
-//                        return stopBind(false);
-//                    }
-//                });
-//            }
-//        });
-//    }
-//
-//    //endregion
-//
-//    //region Start & Stop all
-//
-//    /**
-//     * Not final due to mockito requirements, but this is basically
-//     * it, nothing more to do.
-//     *
-//     * NOTE: Should not be called on the {@link #mHandler} thread! I think
-//     * that would cause deadlocks due to us awaiting for {@link #stop()} to return.
-//     */
-//    public void destroy() {
-//        LOG.i("destroy:", "state:", getEngineState(), "thread:", Thread.currentThread());
-//        // Prevent CameraEngine leaks. Don't set to null, or exceptions
-//        // inside the standard stop() method might crash the main thread.
-//        mHandler.getThread().setUncaughtExceptionHandler(new NoOpExceptionHandler());
-//        // Stop if needed, synchronously and silently.
-//        // Cannot use Tasks.await() because we might be on the UI thread.
-//        final CountDownLatch latch = new CountDownLatch(1);
-//        stop(true).addOnCompleteListener(mHandler.getExecutor(),
-//                new OnCompleteListener<Void>() {
-//            @Override
-//            public void onComplete(@NonNull Task<Void> task) {
-//                latch.countDown();
-//            }
-//        });
-//        try {
-//            boolean success = latch.await(3, TimeUnit.SECONDS);
-//            if (!success) {
-//                // TODO seems like this is always the case?
-//                LOG.e("Probably some deadlock in destroy.",
-//                        "Current thread:", Thread.currentThread(),
-//                        "Handler thread: ", mHandler.getThread());
-//            }
-//        } catch (InterruptedException ignore) {}
-//    }
-//
-//    @SuppressWarnings("WeakerAccess")
-//    protected final void restart() {
-//        LOG.i("Restart:", "calling stop and start");
-//        stop();
-//        start();
-//    }
-//
-//    @NonNull
-//    public Task<Void> start() {
-//        LOG.i("Start:", "posting runnable. State:", getEngineState());
-//        final TaskCompletionSource<Void> outTask = new TaskCompletionSource<>();
-//        mHandler.run(new Runnable() {
-//            @Override
-//            public void run() {
-//                LOG.w("Start:", "executing runnable. AllState is", mAllStep.getState());
-//                // It's better to schedule anyway. allStep might be STARTING and we might be
-//                // tempted to early return here, but the truth is that there might be a stop
-//                // already scheduled when the STARTING op ends.
-//                // if (mAllStep.isStoppingOrStopped()) {
-//                //     LOG.i("Start:", "executing runnable. AllState is STOPPING or STOPPED,
-//                //     so we schedule a start.");
-//                    mAllStep.doStart(false, new Callable<Task<Void>>() {
-//                        @Override
-//                        public Task<Void> call() {
-//                            return startEngine().addOnFailureListener(mHandler.getExecutor(),
-//                                    new OnFailureListener() {
-//                                @Override
-//                                public void onFailure(@NonNull Exception e) {
-//                                    outTask.trySetException(e);
-//                                }
-//                            }).onSuccessTask(mHandler.getExecutor(), new SuccessContinuation<Void, Void>() {
-//                                @NonNull
-//                                @Override
-//                                public Task<Void> then(@Nullable Void aVoid) {
-//                                    outTask.trySetResult(null);
-//                                    return startBind();
-//                                }
-//                            }).onSuccessTask(mHandler.getExecutor(), new SuccessContinuation<Void, Void>() {
-//                                @NonNull
-//                                @Override
-//                                public Task<Void> then(@Nullable Void aVoid) {
-//                                    return startPreview();
-//                                }
-//                            });
-//                        }
-//                    });
-//                // } else {
-//                //     // NOTE: this returns early if we were STARTING.
-//                //     LOG.i("Start:",
-//                //     "executing runnable. AllState is STARTING or STARTED, so we return early.");
-//                //     outTask.trySetResult(null);
-//                // }
-//            }
-//        });
-//        return outTask.getTask();
-//    }
-//
-//    @NonNull
-//    public Task<Void> stop() {
-//        return stop(false);
-//    }
-//
-//    @NonNull
-//    private Task<Void> stop(final boolean swallowExceptions) {
-//        LOG.i("Stop:", "posting runnable. State:", getEngineState());
-//        final TaskCompletionSource<Void> outTask = new TaskCompletionSource<>();
-//        mHandler.run(new Runnable() {
-//            @Override
-//            public void run() {
-//                LOG.w("Stop:", "executing runnable. AllState is", mAllStep.getState());
-//                // It's better to schedule anyway. allStep might be STOPPING and we might be
-//                // tempted to early return here, but the truth is that there might be a start
-//                // already scheduled when the STOPPING op ends.
-//                // if (mAllStep.isStartedOrStarting()) {
-//                //     LOG.i("Stop:", "executing runnable. AllState is STARTING or STARTED,
-//                //     so we schedule a stop.");
-//                    mAllStep.doStop(swallowExceptions, new Callable<Task<Void>>() {
-//                        @Override
-//                        public Task<Void> call() {
-//                            return stopPreview(swallowExceptions).continueWithTask(
-//                                    mHandler.getExecutor(), new Continuation<Void, Task<Void>>() {
-//                                @Override
-//                                public Task<Void> then(@NonNull Task<Void> task) {
-//                                    return stopBind(swallowExceptions);
-//                                }
-//                            }).continueWithTask(mHandler.getExecutor(), new Continuation<Void, Task<Void>>() {
-//                                @Override
-//                                public Task<Void> then(@NonNull Task<Void> task) {
-//                                    return stopEngine(swallowExceptions);
-//                                }
-//                            }).continueWithTask(mHandler.getExecutor(), new Continuation<Void, Task<Void>>() {
-//                                @Override
-//                                public Task<Void> then(@NonNull Task<Void> task) {
-//                                    if (task.isSuccessful()) {
-//                                        outTask.trySetResult(null);
-//                                    } else {
-//                                        //noinspection ConstantConditions
-//                                        outTask.trySetException(task.getException());
-//                                    }
-//                                    return task;
-//                                }
-//                            });
-//                        }
-//                    });
-//                // } else {
-//                //     // NOTE: this returns early if we were STOPPING.
-//                //     LOG.i("Stop:", "executing runnable.
-//                //     AllState is STOPPING or STOPPED, so we return early.");
-//                //     outTask.trySetResult(null);
-//                // }
-//            }
-//        });
-//        return outTask.getTask();
-//    }
 
     //endregion
 
