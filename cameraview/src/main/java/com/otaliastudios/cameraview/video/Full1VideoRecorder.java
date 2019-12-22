@@ -7,7 +7,6 @@ import android.view.SurfaceView;
 
 import androidx.annotation.NonNull;
 
-import com.otaliastudios.cameraview.CameraLogger;
 import com.otaliastudios.cameraview.VideoResult;
 import com.otaliastudios.cameraview.engine.Camera1Engine;
 import com.otaliastudios.cameraview.internal.utils.CamcorderProfiles;
@@ -18,9 +17,6 @@ import com.otaliastudios.cameraview.size.Size;
  * for the Camera1 engine.
  */
 public class Full1VideoRecorder extends FullVideoRecorder {
-
-    private static final String TAG = Full1VideoRecorder.class.getSimpleName();
-    private static final CameraLogger LOG = CameraLogger.create(TAG);
 
     private final Camera1Engine mEngine;
     private final Camera mCamera;

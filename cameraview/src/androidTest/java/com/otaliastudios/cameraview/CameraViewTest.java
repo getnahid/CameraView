@@ -3,9 +3,11 @@ package com.otaliastudios.cameraview;
 
 import android.content.Context;
 import android.content.res.TypedArray;
+import android.graphics.ImageFormat;
 import android.graphics.PointF;
 import android.location.Location;
 import androidx.annotation.NonNull;
+import androidx.test.annotation.UiThreadTest;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.MediumTest;
 
@@ -135,7 +137,7 @@ public class CameraViewTest extends BaseTest {
     public void testDestroy() {
         cameraView.destroy();
         verify(mockPreview, times(1)).onDestroy();
-        verify(mockController, times(1)).destroy();
+        verify(mockController, times(1)).destroy(true);
     }
 
     //region testDefaults
@@ -167,8 +169,13 @@ public class CameraViewTest extends BaseTest {
         assertEquals(cameraView.getLocation(), null);
         assertEquals(cameraView.getExposureCorrection(), 0f, 0f);
         assertEquals(cameraView.getZoom(), 0f, 0f);
-        assertEquals(cameraView.getVideoMaxDuration(), 0, 0);
-        assertEquals(cameraView.getVideoMaxSize(), 0, 0);
+        assertEquals(cameraView.getVideoMaxDuration(), 0);
+        assertEquals(cameraView.getVideoMaxSize(), 0);
+        assertEquals(cameraView.getSnapshotMaxWidth(), 0);
+        assertEquals(cameraView.getSnapshotMaxHeight(), 0);
+        assertEquals(cameraView.getFrameProcessingMaxWidth(), 0);
+        assertEquals(cameraView.getFrameProcessingMaxHeight(), 0);
+        assertEquals(cameraView.getFrameProcessingFormat(), 0);
 
         // Self managed
         GestureParser gestures = new GestureParser(empty);
@@ -177,6 +184,7 @@ public class CameraViewTest extends BaseTest {
         assertEquals(cameraView.getUseDeviceOrientation(), CameraView.DEFAULT_USE_DEVICE_ORIENTATION);
         assertEquals(cameraView.getPictureMetering(), CameraView.DEFAULT_PICTURE_METERING);
         assertEquals(cameraView.getPictureSnapshotMetering(), CameraView.DEFAULT_PICTURE_SNAPSHOT_METERING);
+        assertEquals(cameraView.getFrameProcessingPoolSize(), CameraView.DEFAULT_FRAME_PROCESSING_POOL_SIZE);
         assertEquals(cameraView.getGestureAction(Gesture.TAP), gestures.getTapAction());
         assertEquals(cameraView.getGestureAction(Gesture.LONG_TAP), gestures.getLongTapAction());
         assertEquals(cameraView.getGestureAction(Gesture.PINCH), gestures.getPinchAction());
@@ -800,6 +808,51 @@ public class CameraViewTest extends BaseTest {
         assertEquals(cameraView.getPreviewFrameRate(), 60, 0);
     }
 
+    @Test
+    public void testSnapshotMaxSize() {
+        cameraView.setSnapshotMaxWidth(500);
+        assertEquals(500, cameraView.getSnapshotMaxWidth());
+        cameraView.setSnapshotMaxHeight(700);
+        assertEquals(700, cameraView.getSnapshotMaxHeight());
+    }
+
+    @Test
+    public void testFrameProcessingMaxSize() {
+        cameraView.setFrameProcessingMaxWidth(500);
+        assertEquals(500, cameraView.getFrameProcessingMaxWidth());
+        cameraView.setFrameProcessingMaxHeight(700);
+        assertEquals(700, cameraView.getFrameProcessingMaxHeight());
+    }
+
+    @Test
+    public void testFrameProcessingFormat() {
+        cameraView.setFrameProcessingFormat(ImageFormat.YUV_420_888);
+        assertEquals(ImageFormat.YUV_420_888, cameraView.getFrameProcessingFormat());
+        cameraView.setFrameProcessingFormat(ImageFormat.YUV_422_888);
+        assertEquals(ImageFormat.YUV_422_888, cameraView.getFrameProcessingFormat());
+    }
+
+    @Test
+    public void testFrameProcessingPoolSize() {
+        cameraView.setFrameProcessingPoolSize(4);
+        assertEquals(4, cameraView.getFrameProcessingPoolSize());
+        cameraView.setFrameProcessingPoolSize(6);
+        assertEquals(6, cameraView.getFrameProcessingPoolSize());
+    }
+
+    @Test
+    public void testFrameProcessingExecutors() {
+        cameraView.setFrameProcessingExecutors(5);
+        assertEquals(5, cameraView.getFrameProcessingExecutors());
+        cameraView.setFrameProcessingExecutors(2);
+        assertEquals(2, cameraView.getFrameProcessingExecutors());
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void testFrameProcessingExecutors_throws() {
+        cameraView.setFrameProcessingExecutors(0);
+    }
+
     //endregion
 
     //region Lists of listeners and processors
@@ -974,26 +1027,11 @@ public class CameraViewTest extends BaseTest {
     }
 
     //endregion
-    // TODO: test permissions
 
     //region Filter
 
-    @Test(expected = RuntimeException.class)
-    public void testSetFilter_notExperimental() {
-        cameraView.setExperimental(false);
-        cameraView.setFilter(Filters.AUTO_FIX.newInstance());
-    }
-
-    @Test
-    public void testSetFilter_notExperimental_noFilter() {
-        cameraView.setExperimental(false);
-        cameraView.setFilter(Filters.NONE.newInstance());
-        // no exception thrown
-    }
-
     @Test
     public void testSetFilter() {
-        cameraView.setExperimental(true);
         Filter filter = Filters.AUTO_FIX.newInstance();
         cameraView.setFilter(filter);
         verify(mockPreview, times(1)).setFilter(filter);
@@ -1001,4 +1039,6 @@ public class CameraViewTest extends BaseTest {
         //noinspection ResultOfMethodCallIgnored
         verify(mockPreview, times(1)).getCurrentFilter();
     }
+
+    //endregion
 }

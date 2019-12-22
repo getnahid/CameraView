@@ -18,13 +18,14 @@ import android.view.SurfaceHolder;
 import com.google.android.gms.tasks.Task;
 import com.google.android.gms.tasks.Tasks;
 import com.otaliastudios.cameraview.CameraException;
-import com.otaliastudios.cameraview.CameraLogger;
+import com.otaliastudios.cameraview.CameraOptions;
 import com.otaliastudios.cameraview.controls.PictureFormat;
 import com.otaliastudios.cameraview.engine.mappers.Camera1Mapper;
 import com.otaliastudios.cameraview.engine.offset.Axis;
 import com.otaliastudios.cameraview.engine.offset.Reference;
 import com.otaliastudios.cameraview.engine.options.Camera1Options;
 import com.otaliastudios.cameraview.engine.orchestrator.CameraState;
+import com.otaliastudios.cameraview.frame.ByteBufferFrameManager;
 import com.otaliastudios.cameraview.frame.Frame;
 import com.otaliastudios.cameraview.PictureResult;
 import com.otaliastudios.cameraview.VideoResult;
@@ -47,17 +48,14 @@ import com.otaliastudios.cameraview.video.SnapshotVideoRecorder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 
-public class Camera1Engine extends CameraEngine implements
+public class Camera1Engine extends CameraBaseEngine implements
         Camera.PreviewCallback,
         Camera.ErrorCallback,
-        FrameManager.BufferCallback {
-
-    private static final String TAG = Camera1Engine.class.getSimpleName();
-    private static final CameraLogger LOG = CameraLogger.create(TAG);
-
+        ByteBufferFrameManager.BufferCallback {
     private static final String JOB_FOCUS_RESET = "focus reset";
     private static final String JOB_FOCUS_END = "focus end";
 
@@ -76,20 +74,15 @@ public class Camera1Engine extends CameraEngine implements
 
     @Override
     public void onError(int error, Camera camera) {
-        if (error == Camera.CAMERA_ERROR_SERVER_DIED) {
-            // Looks like this is recoverable.
-            LOG.w("Recoverable error inside the onError callback.",
-                    "CAMERA_ERROR_SERVER_DIED");
-            restart();
-            return;
-        }
-
         String message = LOG.e("Internal Camera1 error.", error);
         Exception runtime = new RuntimeException(message);
         int reason;
         switch (error) {
-            case Camera.CAMERA_ERROR_EVICTED: reason = CameraException.REASON_DISCONNECTED; break;
-            case Camera.CAMERA_ERROR_UNKNOWN: reason = CameraException.REASON_UNKNOWN; break;
+            case Camera.CAMERA_ERROR_SERVER_DIED:
+            case Camera.CAMERA_ERROR_EVICTED:
+                reason = CameraException.REASON_DISCONNECTED; break;
+            case Camera.CAMERA_ERROR_UNKNOWN: // Pass DISCONNECTED which is considered unrecoverable
+                reason = CameraException.REASON_DISCONNECTED; break;
             default: reason = CameraException.REASON_UNKNOWN;
         }
         throw new CameraException(runtime, reason);
@@ -111,6 +104,15 @@ public class Camera1Engine extends CameraEngine implements
         }
         LOG.i("getPreviewStreamAvailableSizes:", result);
         return result;
+    }
+
+    @EngineThread
+    @NonNull
+    @Override
+    protected List<Size> getFrameProcessingAvailableSizes() {
+        // We don't choose the frame processing size.
+        // It comes from the preview stream.
+        return Collections.singletonList(mPreviewStreamSize);
     }
 
     @EngineThread
@@ -146,7 +148,7 @@ public class Camera1Engine extends CameraEngine implements
     @NonNull
     @EngineThread
     @Override
-    protected Task<Void> onStartEngine() {
+    protected Task<CameraOptions> onStartEngine() {
         try {
             mCamera = Camera.open(mCameraId);
         } catch (Exception e) {
@@ -165,7 +167,7 @@ public class Camera1Engine extends CameraEngine implements
         mCamera.setDisplayOrientation(getAngles().offset(Reference.SENSOR, Reference.VIEW,
                 Axis.ABSOLUTE)); // <- not allowed during preview
         LOG.i("onStartEngine:", "Ended");
-        return Tasks.forResult(null);
+        return Tasks.forResult(mCameraOptions);
     }
 
     @EngineThread
@@ -173,12 +175,11 @@ public class Camera1Engine extends CameraEngine implements
     @Override
     protected Task<Void> onStartBind() {
         LOG.i("onStartBind:", "Started");
-        Object output = mPreview.getOutput();
         try {
-            if (output instanceof SurfaceHolder) {
-                mCamera.setPreviewDisplay((SurfaceHolder) output);
-            } else if (output instanceof SurfaceTexture) {
-                mCamera.setPreviewTexture((SurfaceTexture) output);
+            if (mPreview.getOutputClass() == SurfaceHolder.class) {
+                mCamera.setPreviewDisplay((SurfaceHolder) mPreview.getOutput());
+            } else if (mPreview.getOutputClass() == SurfaceTexture.class) {
+                mCamera.setPreviewTexture((SurfaceTexture) mPreview.getOutput());
             } else {
                 throw new RuntimeException("Unknown CameraPreview output class.");
             }
@@ -197,7 +198,7 @@ public class Camera1Engine extends CameraEngine implements
     @Override
     protected Task<Void> onStartPreview() {
         LOG.i("onStartPreview", "Dispatching onCameraPreviewStreamSizeChanged.");
-        mCallback.onCameraPreviewStreamSizeChanged();
+        getCallback().onCameraPreviewStreamSizeChanged();
 
         Size previewSize = getPreviewStreamSize(Reference.VIEW);
         if (previewSize == null) {
@@ -248,15 +249,19 @@ public class Camera1Engine extends CameraEngine implements
     @NonNull
     @Override
     protected Task<Void> onStopPreview() {
+        LOG.i("onStopPreview:", "Started.");
         if (mVideoRecorder != null) {
             mVideoRecorder.stop(true);
             mVideoRecorder = null;
         }
         mPictureRecorder = null;
         getFrameManager().release();
+        LOG.i("onStopPreview:", "Releasing preview buffers.");
         mCamera.setPreviewCallbackWithBuffer(null); // Release anything left
         try {
+            LOG.i("onStopPreview:", "Stopping preview.");
             mCamera.stopPreview();
+            LOG.i("onStopPreview:", "Stopped preview.");
         } catch (Exception e) {
             LOG.e("stopPreview", "Could not stop preview", e);
         }
@@ -278,7 +283,9 @@ public class Camera1Engine extends CameraEngine implements
                 throw new RuntimeException("Unknown CameraPreview output class.");
             }
         } catch (IOException e) {
-            LOG.e("unbindFromSurface", "Could not release surface", e);
+            // NOTE: when this happens, the next onStopEngine() call hangs on camera.release(),
+            // Not sure for how long. This causes the destroy() flow to fail the timeout.
+            LOG.e("onStopBind", "Could not release surface", e);
         }
         return Tasks.forResult(null);
     }
@@ -288,11 +295,25 @@ public class Camera1Engine extends CameraEngine implements
     @Override
     protected Task<Void> onStopEngine() {
         LOG.i("onStopEngine:", "About to clean up.");
-        mOrchestrator.remove(JOB_FOCUS_RESET);
-        mOrchestrator.remove(JOB_FOCUS_END);
+        getOrchestrator().remove(JOB_FOCUS_RESET);
+        getOrchestrator().remove(JOB_FOCUS_END);
         if (mCamera != null) {
             try {
                 LOG.i("onStopEngine:", "Clean up.", "Releasing camera.");
+                // Just like Camera2Engine, this call can hang (at least on emulators) and if
+                // we don't find a way around the lock, it leaves the camera in a bad state.
+                // This is anticipated by the exception in onStopBind() (see above).
+                //
+                // 12:29:32.163 E Camera3-Device: Camera 0: clearStreamingRequest: Device has encountered a serious error[0m
+                // 12:29:32.163 E Camera2-StreamingProcessor: stopStream: Camera 0: Can't clear stream request: Function not implemented (-38)[0m
+                // 12:29:32.163 E Camera2Client: stopPreviewL: Camera 0: Can't stop streaming: Function not implemented (-38)[0m
+                // 12:29:32.273 E Camera2-StreamingProcessor: deletePreviewStream: Unable to delete old preview stream: Device or resource busy (-16)[0m
+                // 12:29:32.274 E Camera2-CallbackProcessor: deleteStream: Unable to delete callback stream: Device or resource busy (-16)[0m
+                // 12:29:32.274 E Camera3-Device: Camera 0: disconnect: Shutting down in an error state[0m
+                //
+                // I believe there is a thread deadlock due to this call internally waiting to
+                // dispatch some callback to us (pending captures, ...), but the callback thread
+                // is blocked here. We try to workaround this in CameraEngine.destroy().
                 mCamera.release();
                 LOG.i("onStopEngine:", "Clean up.", "Released camera.");
             } catch (Exception e) {
@@ -315,11 +336,13 @@ public class Camera1Engine extends CameraEngine implements
     @EngineThread
     @Override
     protected void onTakePicture(@NonNull PictureResult.Stub stub, boolean doMetering) {
+        LOG.i("onTakePicture:", "executing.");
         stub.rotation = getAngles().offset(Reference.SENSOR, Reference.OUTPUT,
                 Axis.RELATIVE_TO_SENSOR);
         stub.size = getPictureSize(Reference.OUTPUT);
         mPictureRecorder = new Full1PictureRecorder(stub, Camera1Engine.this, mCamera);
         mPictureRecorder.take();
+        LOG.i("onTakePicture:", "executed.");
     }
 
     @EngineThread
@@ -327,6 +350,7 @@ public class Camera1Engine extends CameraEngine implements
     protected void onTakePictureSnapshot(@NonNull PictureResult.Stub stub,
                                          @NonNull AspectRatio outputRatio,
                                          boolean doMetering) {
+        LOG.i("onTakePictureSnapshot:", "executing.");
         // Not the real size: it will be cropped to match the view ratio
         stub.size = getUncroppedSnapshotSize(Reference.OUTPUT);
         // Actually it will be rotated and set to 0.
@@ -337,6 +361,7 @@ public class Camera1Engine extends CameraEngine implements
             mPictureRecorder = new Snapshot1PictureRecorder(stub, this, mCamera, outputRatio);
         }
         mPictureRecorder.take();
+        LOG.i("onTakePictureSnapshot:", "executed.");
     }
 
     //endregion
@@ -458,7 +483,7 @@ public class Camera1Engine extends CameraEngine implements
     public void setFlash(@NonNull Flash flash) {
         final Flash old = mFlash;
         mFlash = flash;
-        mFlashTask = mOrchestrator.scheduleStateful("flash",
+        mFlashTask = getOrchestrator().scheduleStateful("flash (" + flash + ")",
                 CameraState.ENGINE,
                 new Runnable() {
             @Override
@@ -482,7 +507,7 @@ public class Camera1Engine extends CameraEngine implements
     public void setLocation(@Nullable Location location) {
         final Location oldLocation = mLocation;
         mLocation = location;
-        mLocationTask = mOrchestrator.scheduleStateful("location",
+        mLocationTask = getOrchestrator().scheduleStateful("location",
                 CameraState.ENGINE,
                 new Runnable() {
             @Override
@@ -509,7 +534,8 @@ public class Camera1Engine extends CameraEngine implements
     public void setWhiteBalance(@NonNull WhiteBalance whiteBalance) {
         final WhiteBalance old = mWhiteBalance;
         mWhiteBalance = whiteBalance;
-        mWhiteBalanceTask = mOrchestrator.scheduleStateful("white balance",
+        mWhiteBalanceTask = getOrchestrator().scheduleStateful(
+                "white balance (" + whiteBalance + ")",
                 CameraState.ENGINE,
                 new Runnable() {
             @Override
@@ -523,7 +549,11 @@ public class Camera1Engine extends CameraEngine implements
     private boolean applyWhiteBalance(@NonNull Camera.Parameters params,
                                       @NonNull WhiteBalance oldWhiteBalance) {
         if (mCameraOptions.supports(mWhiteBalance)) {
+            // If this lock key is present, the engine can throw when applying the
+            // parameters, not sure why. Since we never lock it, this should be
+            // harmless for the rest of the engine.
             params.setWhiteBalance(mMapper.mapWhiteBalance(mWhiteBalance));
+            params.remove("auto-whitebalance-lock");
             return true;
         }
         mWhiteBalance = oldWhiteBalance;
@@ -534,7 +564,7 @@ public class Camera1Engine extends CameraEngine implements
     public void setHdr(@NonNull Hdr hdr) {
         final Hdr old = mHdr;
         mHdr = hdr;
-        mHdrTask = mOrchestrator.scheduleStateful("hdr",
+        mHdrTask = getOrchestrator().scheduleStateful("hdr (" + hdr + ")",
                 CameraState.ENGINE,
                 new Runnable() {
             @Override
@@ -558,7 +588,7 @@ public class Camera1Engine extends CameraEngine implements
     public void setZoom(final float zoom, @Nullable final PointF[] points, final boolean notify) {
         final float old = mZoomValue;
         mZoomValue = zoom;
-        mZoomTask = mOrchestrator.scheduleStateful("zoom",
+        mZoomTask = getOrchestrator().scheduleStateful("zoom (" + zoom + ")",
                 CameraState.ENGINE,
                 new Runnable() {
             @Override
@@ -567,7 +597,7 @@ public class Camera1Engine extends CameraEngine implements
                 if (applyZoom(params, old)) {
                     mCamera.setParameters(params);
                     if (notify) {
-                        mCallback.dispatchOnZoomChanged(mZoomValue, points);
+                        getCallback().dispatchOnZoomChanged(mZoomValue, points);
                     }
                 }
             }
@@ -590,7 +620,8 @@ public class Camera1Engine extends CameraEngine implements
                                       @Nullable final PointF[] points, final boolean notify) {
         final float old = mExposureCorrectionValue;
         mExposureCorrectionValue = EVvalue;
-        mExposureCorrectionTask = mOrchestrator.scheduleStateful("exposure correction",
+        mExposureCorrectionTask = getOrchestrator().scheduleStateful(
+                "exposure correction (" + EVvalue + ")",
                 CameraState.ENGINE,
                 new Runnable() {
             @Override
@@ -599,7 +630,7 @@ public class Camera1Engine extends CameraEngine implements
                 if (applyExposureCorrection(params, old)) {
                     mCamera.setParameters(params);
                     if (notify) {
-                        mCallback.dispatchOnExposureCorrectionChanged(mExposureCorrectionValue,
+                        getCallback().dispatchOnExposureCorrectionChanged(mExposureCorrectionValue,
                                 bounds, points);
                     }
                 }
@@ -630,7 +661,8 @@ public class Camera1Engine extends CameraEngine implements
     public void setPlaySounds(boolean playSounds) {
         final boolean old = mPlaySounds;
         mPlaySounds = playSounds;
-        mPlaySoundsTask = mOrchestrator.scheduleStateful("play sounds",
+        mPlaySoundsTask = getOrchestrator().scheduleStateful(
+                "play sounds (" + playSounds + ")",
                 CameraState.ENGINE,
                 new Runnable() {
             @Override
@@ -666,7 +698,8 @@ public class Camera1Engine extends CameraEngine implements
     public void setPreviewFrameRate(float previewFrameRate) {
         final float old = previewFrameRate;
         mPreviewFrameRate = previewFrameRate;
-        mPreviewFrameRateTask = mOrchestrator.scheduleStateful("preview fps",
+        mPreviewFrameRateTask = getOrchestrator().scheduleStateful(
+                "preview fps (" + previewFrameRate + ")",
                 CameraState.ENGINE,
                 new Runnable() {
             @Override
@@ -724,8 +757,26 @@ public class Camera1Engine extends CameraEngine implements
 
     @NonNull
     @Override
-    protected FrameManager instantiateFrameManager() {
-        return new FrameManager(2, this);
+    protected FrameManager instantiateFrameManager(int poolSize) {
+        return new ByteBufferFrameManager(poolSize, this);
+    }
+
+    @NonNull
+    @Override
+    public ByteBufferFrameManager getFrameManager() {
+        return (ByteBufferFrameManager) super.getFrameManager();
+    }
+
+    @Override
+    public void setHasFrameProcessors(boolean hasFrameProcessors) {
+        // we don't care, FP is always on
+        mHasFrameProcessors = hasFrameProcessors;
+    }
+
+    @Override
+    public void setFrameProcessingFormat(int format) {
+        // Ignore input: we only support NV21.
+        mFrameProcessingFormat = ImageFormat.NV21;
     }
 
     @Override
@@ -739,14 +790,15 @@ public class Camera1Engine extends CameraEngine implements
     @Override
     public void onPreviewFrame(byte[] data, Camera camera) {
         if (data == null) {
-            // Let's test this with an exception.
-            throw new RuntimeException("Camera1 returns null data from onPreviewFrame! " +
-                    "This would make the frame processors crash later.");
+            // Seen this happen in logs.
+            return;
         }
-        Frame frame = getFrameManager().getFrame(data,
-                System.currentTimeMillis(),
-                getAngles().offset(Reference.SENSOR, Reference.OUTPUT, Axis.RELATIVE_TO_SENSOR));
-        mCallback.dispatchFrame(frame);
+        int rotation = getAngles().offset(Reference.SENSOR, Reference.OUTPUT,
+                Axis.RELATIVE_TO_SENSOR);
+        Frame frame = getFrameManager().getFrame(data, System.currentTimeMillis(), rotation);
+        if (frame != null) {
+            getCallback().dispatchFrame(frame);
+        }
     }
 
     //endregion
@@ -764,7 +816,7 @@ public class Camera1Engine extends CameraEngine implements
         }
         final int viewWidthF = viewWidth;
         final int viewHeightF = viewHeight;
-        mOrchestrator.scheduleStateful("auto focus", CameraState.ENGINE, new Runnable() {
+        getOrchestrator().scheduleStateful("auto focus", CameraState.ENGINE, new Runnable() {
             @Override
             public void run() {
                 if (!mCameraOptions.isAutoFocusSupported()) return;
@@ -783,16 +835,16 @@ public class Camera1Engine extends CameraEngine implements
                 if (maxAE > 0) params.setMeteringAreas(maxAE > 1 ? meteringAreas2 : meteringAreas1);
                 params.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
                 mCamera.setParameters(params);
-                mCallback.dispatchOnFocusStart(gesture, p);
+                getCallback().dispatchOnFocusStart(gesture, p);
 
                 // The auto focus callback is not guaranteed to be called, but we really want it
                 // to be. So we remove the old runnable if still present and post a new one.
-                mOrchestrator.remove(JOB_FOCUS_END);
-                mOrchestrator.scheduleDelayed(JOB_FOCUS_END, AUTOFOCUS_END_DELAY_MILLIS,
+                getOrchestrator().remove(JOB_FOCUS_END);
+                getOrchestrator().scheduleDelayed(JOB_FOCUS_END, AUTOFOCUS_END_DELAY_MILLIS,
                         new Runnable() {
                     @Override
                     public void run() {
-                        mCallback.dispatchOnFocusEnd(gesture, false, p);
+                        getCallback().dispatchOnFocusEnd(gesture, false, p);
                     }
                 });
 
@@ -802,11 +854,11 @@ public class Camera1Engine extends CameraEngine implements
                     mCamera.autoFocus(new Camera.AutoFocusCallback() {
                         @Override
                         public void onAutoFocus(boolean success, Camera camera) {
-                            mOrchestrator.remove(JOB_FOCUS_END);
-                            mOrchestrator.remove(JOB_FOCUS_RESET);
-                            mCallback.dispatchOnFocusEnd(gesture, success, p);
+                            getOrchestrator().remove(JOB_FOCUS_END);
+                            getOrchestrator().remove(JOB_FOCUS_RESET);
+                            getCallback().dispatchOnFocusEnd(gesture, success, p);
                             if (shouldResetAutoFocus()) {
-                                mOrchestrator.scheduleStatefulDelayed(
+                                getOrchestrator().scheduleStatefulDelayed(
                                         JOB_FOCUS_RESET,
                                         CameraState.ENGINE,
                                         getAutoFocusResetDelay(),
