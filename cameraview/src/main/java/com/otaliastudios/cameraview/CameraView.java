@@ -116,7 +116,6 @@ public class CameraView {
     private SharedPreferences preference;
 
     // Threading
-    private Handler mUiHandler;
     private WorkerHandler mFrameProcessorsHandler;
     private Context context;
     private CameraViewParent cameraViewParent;
