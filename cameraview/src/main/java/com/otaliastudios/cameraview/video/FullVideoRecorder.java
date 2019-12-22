@@ -7,6 +7,7 @@ import android.view.SurfaceView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.otaliastudios.cameraview.CameraException;
 import com.otaliastudios.cameraview.CameraLogger;
 import com.otaliastudios.cameraview.VideoResult;
 import com.otaliastudios.cameraview.controls.Audio;
@@ -248,6 +249,10 @@ public abstract class FullVideoRecorder extends VideoRecorder {
 
     @Override
     protected void onStart() {
+        if(mResult == null){
+            throw  new CameraException(new Throwable(), CameraException.REASON_UNKNOWN);
+        }
+
         if (!prepareMediaRecorder(mResult)) {
             mResult = null;
             stop(false);

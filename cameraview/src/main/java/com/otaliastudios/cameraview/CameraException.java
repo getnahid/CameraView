@@ -55,6 +55,8 @@ public class CameraException extends RuntimeException {
 
     public static final int REASON_CAMERA_PERMISSION_DENIED_FOR_WINDOW = 11;
 
+    public static final int REASON_CAMERA_SURFACE_VIEW_IS_NOT_AVAILABLE = 12;
+
     private int reason = REASON_UNKNOWN;
 
     @SuppressWarnings("WeakerAccess")

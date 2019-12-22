@@ -2,6 +2,7 @@ package com.otaliastudios.cameraview.controls;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Build;
 import android.preference.PreferenceManager;
 
 import androidx.annotation.NonNull;
@@ -49,11 +50,11 @@ public class ControlParser {
         this.videoCodec = preference.getInt(KEY_CAMERA_VIDEO_CODEC, VideoCodec.DEFAULT.value());
         this.pictureFormat = preference.getInt(KEY_CAMERA_PICTURE_FORMAT, PictureFormat.DEFAULT.value());
 
-//        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.P){
-//            this.engine = preference.getInt(KEY_CAMERA_ENGINE, Engine.CAMERA2.value());
-//        }else {
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.P){
+            this.engine = preference.getInt(KEY_CAMERA_ENGINE, Engine.CAMERA2.value());
+        }else {
             this.engine = preference.getInt(KEY_CAMERA_ENGINE, Engine.DEFAULT.value());
-        //}
+        }
     }
 
     public void setFacing(Facing facing){

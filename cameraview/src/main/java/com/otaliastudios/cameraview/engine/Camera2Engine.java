@@ -261,6 +261,16 @@ public class Camera2Engine extends CameraEngine implements ImageReader.OnImageAv
                         "state:", getState(),
                         "targetState:", getTargetState());
                 throw new CameraException(CameraException.REASON_DISCONNECTED);
+            } catch (IllegalArgumentException e) {
+                // mSession is invalid - has been closed. This is extremely worrying because
+                // it means that the session state and getPreviewState() are not synced.
+                // This probably signals an error in the setup/teardown synchronization.
+                LOG.e("applyRepeatingRequestBuilder: session is invalid!", e,
+                        "checkStarted:", checkStarted,
+                        "currentThread:", Thread.currentThread().getName(),
+                        "state:", getState(),
+                        "targetState:", getTargetState());
+                throw new CameraException(CameraException.REASON_CAMERA_SURFACE_VIEW_IS_NOT_AVAILABLE);
             }
         }
     }
@@ -413,7 +423,8 @@ public class Camera2Engine extends CameraEngine implements ImageReader.OnImageAv
                     // Docs say to release this camera instance, however, since we throw an
                     // unrecoverable CameraException, this will trigger a stop() through the
                     // exception handler.
-                    task.trySetException(new CameraException(CameraException.REASON_DISCONNECTED));
+                    //task.trySetException(new CameraException(CameraException.REASON_DISCONNECTED));
+                    throw new CameraException(new Throwable(), CameraException.REASON_DISCONNECTED);
                 }
 
                 @Override
@@ -559,8 +570,9 @@ public class Camera2Engine extends CameraEngine implements ImageReader.OnImageAv
                     throw  new CameraException(new Throwable(), CameraException.REASON_CAMERA2ENGINE_SUPPORT_FAILED);
                 }
             }, null);
-        } catch (CameraAccessException e) {
-            throw createCameraException(e);
+        } catch (Exception e) {
+            //throw createCameraException(e);
+            throw  new CameraException(new Throwable(), CameraException.REASON_CAMERA_SURFACE_VIEW_IS_NOT_AVAILABLE);
         }
         return task.getTask();
     }
@@ -628,11 +640,12 @@ public class Camera2Engine extends CameraEngine implements ImageReader.OnImageAv
             // NOTE: should we wait for onReady() like docs say?
             // Leaving this synchronous for now.
             mSession.stopRepeating();
-        } catch (CameraAccessException e) {
+        } //catch (CameraAccessException e) {
+        catch (Exception e) {
             // This tells us that we should stop everything. It's better to throw an unrecoverable
             // exception rather than just swallow this, so everything gets stopped.
             LOG.w("stopRepeating failed!", e);
-            throw createCameraException(e);
+            //throw createCameraException(e);
         }
         removeRepeatingRequestBuilderSurfaces();
         mLastRepeatingResult = null;
@@ -818,8 +831,9 @@ public class Camera2Engine extends CameraEngine implements ImageReader.OnImageAv
 
     private void doTakeVideo(@NonNull final VideoResult.Stub stub) {
         if (!(mVideoRecorder instanceof Full2VideoRecorder)) {
-            throw new IllegalStateException("doTakeVideo called, but video recorder " +
-                    "is not a Full2VideoRecorder! " + mVideoRecorder);
+//            throw new IllegalStateException("doTakeVideo called, but video recorder " +
+//                    "is not a Full2VideoRecorder! " + mVideoRecorder);
+            throw new CameraException(CameraException.REASON_UNKNOWN);
         }
         Full2VideoRecorder recorder = (Full2VideoRecorder) mVideoRecorder;
         try {
