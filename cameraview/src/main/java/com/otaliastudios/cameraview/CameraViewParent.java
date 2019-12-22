@@ -377,8 +377,6 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
 
     //endregion
 
-    //region Filters
-
     /**
      * Applies a real-time filter to the camera preview, if it supports it.
      * The only preview type that does so is currently {@link Preview#GL_SURFACE}.
@@ -402,11 +400,6 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
         } else {
             boolean isNoFilter = filter instanceof NoFilter;
             boolean isFilterPreview = mCameraPreview instanceof FilterCameraPreview;
-            // If not experimental, we only allow NoFilter (called on creation).
-            if (!isNoFilter && !mExperimental) {
-                throw new RuntimeException("Filters are an experimental features and" +
-                        " need the experimental flag set.");
-            }
             // If not a filter preview, we only allow NoFilter (called on creation).
             if (!isNoFilter && !isFilterPreview) {
                 throw new RuntimeException("Filters are only supported by the GL_SURFACE preview." +
@@ -431,10 +424,7 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
      */
     @NonNull
     public Filter getFilter() {
-        if (!mExperimental) {
-            throw new RuntimeException("Filters are an experimental features and need " +
-                    "the experimental flag set.");
-        } else if (mCameraPreview == null) {
+        if (mCameraPreview == null) {
             return mPendingFilter;
         } else if (mCameraPreview instanceof FilterCameraPreview) {
             return ((FilterCameraPreview) mCameraPreview).getCurrentFilter();
@@ -444,6 +434,8 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
         }
 
     }
+
+    //endregion
 
     //end region overlay
 
