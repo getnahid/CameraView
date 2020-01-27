@@ -1,5 +1,7 @@
 package com.otaliastudios.cameraview.engine;
 
+import android.graphics.PointF;
+import android.graphics.RectF;
 import android.location.Location;
 
 import androidx.annotation.CallSuper;
@@ -25,6 +27,7 @@ import com.otaliastudios.cameraview.engine.offset.Angles;
 import com.otaliastudios.cameraview.engine.offset.Reference;
 import com.otaliastudios.cameraview.engine.orchestrator.CameraState;
 import com.otaliastudios.cameraview.frame.FrameManager;
+import com.otaliastudios.cameraview.gesture.Gesture;
 import com.otaliastudios.cameraview.overlay.Overlay;
 import com.otaliastudios.cameraview.picture.PictureRecorder;
 import com.otaliastudios.cameraview.preview.CameraPreview;
@@ -35,6 +38,7 @@ import com.otaliastudios.cameraview.size.SizeSelectors;
 import com.otaliastudios.cameraview.video.VideoRecorder;
 
 import java.io.File;
+import java.io.FileDescriptor;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -66,6 +70,7 @@ public abstract class CameraBaseEngine extends CameraEngine {
     @SuppressWarnings("WeakerAccess") protected boolean mPictureMetering;
     @SuppressWarnings("WeakerAccess") protected boolean mPictureSnapshotMetering;
     @SuppressWarnings("WeakerAccess") protected float mPreviewFrameRate;
+    @SuppressWarnings("WeakerAccess") private boolean mPreviewFrameRateExact;
 
     private FrameManager mFrameManager;
     private final Angles mAngles = new Angles();
@@ -438,6 +443,16 @@ public abstract class CameraBaseEngine extends CameraEngine {
     }
 
     @Override
+    public final void setPreviewFrameRateExact(boolean previewFrameRateExact) {
+        mPreviewFrameRateExact = previewFrameRateExact;
+    }
+
+    @Override
+    public final boolean getPreviewFrameRateExact() {
+        return mPreviewFrameRateExact;
+    }
+
+    @Override
     public final float getPreviewFrameRate() {
         return mPreviewFrameRate;
     }
@@ -546,7 +561,9 @@ public abstract class CameraBaseEngine extends CameraEngine {
     }
 
     @Override
-    public final void takeVideo(final @NonNull VideoResult.Stub stub) {
+    public final void takeVideo(final @NonNull VideoResult.Stub stub,
+                                final @Nullable File file,
+                                final @Nullable FileDescriptor fileDescriptor) {
         getOrchestrator().scheduleStateful("take video", CameraState.BIND, new Runnable() {
             @Override
             public void run() {
@@ -555,7 +572,13 @@ public abstract class CameraBaseEngine extends CameraEngine {
                 if (mMode == Mode.PICTURE) {
                     throw new IllegalStateException("Can't record video while in PICTURE mode");
                 }
-                //stub.file = file;
+                if (file != null) {
+                    stub.file = file;
+                } else if (fileDescriptor != null) {
+                    stub.fileDescriptor = fileDescriptor;
+                } else {
+                    throw new IllegalStateException("file and fileDescriptor are both null.");
+                }
                 stub.isSnapshot = false;
                 stub.videoCodec = mVideoCodec;
                 stub.location = mLocation;

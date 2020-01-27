@@ -3,7 +3,7 @@ apply plugin: 'com.github.dcendents.android-maven'
 apply plugin: 'com.jfrog.bintray'
 
 // Required by bintray
-version = '2.5.0'
+version = '2.6.1'
 group = 'com.otaliastudios'
 
 //region android dependencies
@@ -48,6 +48,7 @@ dependencies {
     api 'androidx.lifecycle:lifecycle-common:2.1.0'
     api 'com.google.android.gms:play-services-tasks:17.0.0'
     implementation 'androidx.annotation:annotation:1.1.0'
+    implementation 'com.otaliastudios.opengl:egloo:0.4.0'
 }
 
 //endregion
@@ -145,7 +146,7 @@ bintray {
 
 // From official sample https://github.com/bintray/bintray-examples/blob/master/gradle-aar-example/build.gradle
 task sourcesJar(type: Jar) {
-    classifier = 'sources'
+    archiveClassifier.set('sources')
     from android.sourceSets.main.java.sourceFiles
 }
 
@@ -167,7 +168,7 @@ task javadoc(type: Javadoc) {
 }
 
 task javadocJar(type: Jar, dependsOn: javadoc) {
-    classifier = 'javadoc'
+    archiveClassifier.set('javadoc')
     from javadoc.destinationDir
 }
 

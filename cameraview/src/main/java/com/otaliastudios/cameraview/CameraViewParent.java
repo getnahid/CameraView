@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.PointF;
+import android.graphics.RectF;
 import android.os.Handler;
 import android.preference.PreferenceManager;
 import android.util.AttributeSet;
@@ -47,6 +48,7 @@ import com.otaliastudios.cameraview.internal.GridLinesLayout;
 import com.otaliastudios.cameraview.markers.AutoFocusMarker;
 import com.otaliastudios.cameraview.markers.MarkerLayout;
 import com.otaliastudios.cameraview.markers.MarkerParser;
+import com.otaliastudios.cameraview.metering.MeteringRegions;
 import com.otaliastudios.cameraview.overlay.OverlayLayout;
 import com.otaliastudios.cameraview.preview.CameraPreview;
 import com.otaliastudios.cameraview.preview.FilterCameraPreview;
@@ -566,7 +568,27 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
         if (y < 0 || y > getHeight()) {
             throw new IllegalArgumentException("y should be >= 0 and <= getHeight()");
         }
-        mCameraEngine.startAutoFocus(null, new PointF(x, y));
+        Size size = new Size(getWidth(), getHeight());
+        PointF point = new PointF(x, y);
+        MeteringRegions regions = MeteringRegions.fromPoint(size, point);
+        mCameraEngine.startAutoFocus(null, regions, point);
+    }
+
+    /**
+     * Starts a 3A touch metering process at the given coordinates, with respect
+     * to the view width and height.
+     *
+     * @param region should be between 0 and getWidth() / getHeight()
+     */
+    public void startAutoFocus(@NonNull RectF region) {
+        RectF full = new RectF(0, 0, getWidth(), getHeight());
+        if (!full.contains(region)) {
+            throw new IllegalArgumentException("Region is out of view bounds! " + region);
+        }
+        Size size = new Size(getWidth(), getHeight());
+        MeteringRegions regions = MeteringRegions.fromArea(size, region);
+        mCameraEngine.startAutoFocus(null, regions,
+                new PointF(region.centerX(), region.centerY()));
     }
 
 //region Measuring behavior
@@ -804,7 +826,7 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
     @SuppressLint("ClickableViewAccessibility")
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-       // if (!isOpened()) return true;
+        //if (!isOpened()) return true;
 
         // Pass to our own GestureLayouts
         CameraOptions options = mCameraEngine.getCameraOptions(); // Non null
@@ -839,7 +861,9 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
                 break;
 
             case AUTO_FOCUS:
-                mCameraEngine.startAutoFocus(gesture, points[0]);
+                Size size = new Size(getWidth(), getHeight());
+                MeteringRegions regions = MeteringRegions.fromPoint(size, points[0]);
+                mCameraEngine.startAutoFocus(gesture, regions, points[0]);
                 break;
 
             case ZOOM:

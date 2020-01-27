@@ -2,7 +2,6 @@ package com.otaliastudios.cameraview.video;
 
 import android.media.CamcorderProfile;
 import android.media.MediaRecorder;
-import android.os.Handler;
 import android.view.SurfaceView;
 
 import androidx.annotation.NonNull;
@@ -13,8 +12,8 @@ import com.otaliastudios.cameraview.CameraLogger;
 import com.otaliastudios.cameraview.VideoResult;
 import com.otaliastudios.cameraview.controls.Audio;
 import com.otaliastudios.cameraview.controls.VideoCodec;
+import com.otaliastudios.cameraview.internal.CamcorderProfiles;
 import com.otaliastudios.cameraview.internal.DeviceEncoders;
-import com.otaliastudios.cameraview.internal.utils.CamcorderProfiles;
 import com.otaliastudios.cameraview.size.Size;
 
 /**
@@ -224,10 +223,12 @@ public abstract class FullVideoRecorder extends VideoRecorder {
                     (float) stub.location.getLongitude());
         }
 
-        if(stub.fileDescriptor != null){
-            mMediaRecorder.setOutputFile(stub.fileDescriptor);
-        }else{
+        if (stub.file != null) {
             mMediaRecorder.setOutputFile(stub.file.getAbsolutePath());
+        } else if (stub.fileDescriptor != null) {
+            mMediaRecorder.setOutputFile(stub.fileDescriptor);
+        } else {
+            throw new IllegalStateException("file and fileDescriptor are both null.");
         }
 
         mMediaRecorder.setOrientationHint(stub.rotation);

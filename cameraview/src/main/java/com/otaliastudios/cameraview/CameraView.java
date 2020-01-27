@@ -12,11 +12,9 @@ import android.content.pm.PackageManager;
 import android.graphics.PointF;
 import android.location.Location;
 import android.media.MediaActionSound;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.ParcelFileDescriptor;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -47,8 +45,7 @@ import com.otaliastudios.cameraview.frame.FrameProcessor;
 import com.otaliastudios.cameraview.gesture.Gesture;
 import com.otaliastudios.cameraview.gesture.GestureAction;
 import com.otaliastudios.cameraview.gesture.GestureFinder;
-import com.otaliastudios.cameraview.internal.utils.OrientationHelper;
-import com.otaliastudios.cameraview.internal.utils.WorkerHandler;
+import com.otaliastudios.cameraview.internal.OrientationHelper;
 import com.otaliastudios.cameraview.overlay.OverlayLayout;
 import com.otaliastudios.cameraview.size.Size;
 import com.otaliastudios.cameraview.size.SizeSelector;
@@ -56,7 +53,7 @@ import com.otaliastudios.cameraview.size.SizeSelectorParser;
 import com.otaliastudios.cameraview.size.SizeSelectors;
 
 import java.io.File;
-import java.io.FileNotFoundException;
+import java.io.FileDescriptor;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -117,7 +114,7 @@ public class CameraView {
     private SharedPreferences preference;
 
     // Threading
-    private WorkerHandler mFrameProcessorsHandler;
+    //private WorkerHandler mFrameProcessorsHandler;
     private Context context;
     private CameraViewParent cameraViewParent;
     private ControlParser controlParser;
@@ -136,6 +133,7 @@ public class CameraView {
     public static final String KEY_CAMERA_PICTURE_METERING = "CameraView_cameraPictureMetering";
     public static final String KEY_CAMERA_SNAPSHOT_METERING = "CameraView_cameraPictureSnapshotMetering";
     public static final String KEY_PREVIEW_FRAME_RATE = "CameraView_cameraPreviewFrameRate";
+    public static final String KEY_PREVIEW_FRAME_RATE_EXACT = "cameraPreviewFrameRateExact";
     public static final String KEY_CAMERA_REQUEST_PERMISSIONS = "CameraView_cameraRequestPermissions";
     public static final String KEY_CAMERA_SNAPSHOT_MAX_WIDTH = "CameraView_cameraSnapshotMaxWidth";
     public static final String KEY_CAMERA_SNAPSHOT_MAX_HEIGHT = "CameraView_cameraSnapshotMaxHeight";
@@ -189,7 +187,7 @@ public class CameraView {
         boolean pictureMetering = preference.getBoolean(KEY_CAMERA_PICTURE_METERING, DEFAULT_PICTURE_METERING);
         boolean pictureSnapshotMetering = preference.getBoolean(KEY_CAMERA_SNAPSHOT_METERING, DEFAULT_PICTURE_SNAPSHOT_METERING);
         float videoFrameRate = (float) preference.getInt(KEY_PREVIEW_FRAME_RATE, 0);
-        //float videoFrameRate = a.getFloat(R.styleable.CameraView_cameraPreviewFrameRate, 0);
+        boolean videoFrameRateExact = preference.getBoolean(KEY_PREVIEW_FRAME_RATE_EXACT, false);
         int snapshotMaxWidth = preference.getInt(KEY_CAMERA_SNAPSHOT_MAX_WIDTH, 0);
         int snapshotMaxHeight = preference.getInt(KEY_CAMERA_SNAPSHOT_MAX_HEIGHT, 0);
         int frameMaxWidth = preference.getInt(KEY_CAMERA_FRAME_PROCESSING_MAX_WIDTH, 0);
@@ -235,6 +233,7 @@ public class CameraView {
         setVideoMaxDuration(videoMaxDuration);
         setVideoBitRate(videoBitRate);
         setAutoFocusResetDelay(autoFocusResetDelay);
+        setPreviewFrameRateExact(videoFrameRateExact);
         setPreviewFrameRate(videoFrameRate);
         setSnapshotMaxWidth(snapshotMaxWidth);
         setSnapshotMaxHeight(snapshotMaxHeight);
@@ -314,11 +313,16 @@ public class CameraView {
     //@Override
     protected void onDetachedFromWindow() {
         //if (!mInEditor)
-        mOrientationHelper.disable();
+            mOrientationHelper.disable();
+        mLastPreviewStreamSize = null;
         //super.onDetachedFromWindow();
     }
 
     //endregion
+
+
+
+
 
     //region Lifecycle APIs
 
@@ -552,6 +556,7 @@ public class CameraView {
         setVideoBitRate(oldEngine.getVideoBitRate());
         setAutoFocusResetDelay(oldEngine.getAutoFocusResetDelay());
         setPreviewFrameRate(oldEngine.getPreviewFrameRate());
+        setPreviewFrameRateExact(oldEngine.getPreviewFrameRateExact());
         setSnapshotMaxWidth(oldEngine.getSnapshotMaxWidth());
         setSnapshotMaxHeight(oldEngine.getSnapshotMaxHeight());
         setFrameProcessingMaxWidth(oldEngine.getFrameProcessingMaxWidth());
@@ -844,7 +849,6 @@ public class CameraView {
     @SuppressWarnings("unused")
     public long getAutoFocusResetDelay() { return mCameraEngine.getAutoFocusResetDelay(); }
 
-
     /**
      * <strong>ADVANCED FEATURE</strong> - sets a size selector for the preview stream.
      * The {@link SizeSelector} will be invoked with the list of available sizes, and the first
@@ -1010,6 +1014,38 @@ public class CameraView {
     }
 
     /**
+     * A flag to control the behavior when calling {@link #setPreviewFrameRate(float)}.
+     *
+     * If the value is set to true, {@link #setPreviewFrameRate(float)} will choose the preview
+     * frame range as close to the desired new frame rate as possible. Which mean it may choose a
+     * narrow range around the desired frame rate. Note: This option will give you as exact fps as
+     * you want but the sensor will have less freedom when adapting the exposure to the environment,
+     * which may lead to dark preview.
+     *
+     * If the value is set to false, {@link #setPreviewFrameRate(float)} will choose as broad range
+     * as it can.
+     *
+     * @param videoFrameRateExact whether want a more exact preview frame range
+     *
+     * @see #setPreviewFrameRate(float)
+     */
+    public void setPreviewFrameRateExact(boolean videoFrameRateExact) {
+        mCameraEngine.setPreviewFrameRateExact(videoFrameRateExact);
+    }
+
+    /**
+     * Returns whether we want to set preview fps as exact as we set through
+     * {@link #setPreviewFrameRate(float)}.
+     *
+     * @see #setPreviewFrameRateExact(boolean)
+     * @see #setPreviewFrameRate(float)
+     * @return current option
+     */
+    public boolean getPreviewFrameRateExact() {
+        return mCameraEngine.getPreviewFrameRateExact();
+    }
+
+    /**
      * Sets the preview frame rate in frames per second.
      * This rate will be used, for example, by the frame processor and in video
      * snapshot taken through {@link #takeVideo(File)}.
@@ -1113,10 +1149,28 @@ public class CameraView {
      * @param file a file where the video will be saved
      */
     public void takeVideo(@NonNull File file) {
-        VideoResult.Stub stub = new VideoResult.Stub();
-        stub.file = file;
+        takeVideo(file, null);
+    }
 
-        mCameraEngine.takeVideo(stub);
+    /**
+     * Starts recording a video. Video will be written to the given file,
+     * so callers should ensure they have appropriate permissions to write to the file.
+     *
+     * @param fileDescriptor a file descriptor where the video will be saved
+     */
+    public void takeVideo(@NonNull FileDescriptor fileDescriptor) {
+        takeVideo(null, fileDescriptor);
+    }
+
+    private void takeVideo(@Nullable File file, @Nullable FileDescriptor fileDescriptor) {
+        VideoResult.Stub stub = new VideoResult.Stub();
+        if (file != null) {
+            mCameraEngine.takeVideo(stub, file, null);
+        } else if (fileDescriptor != null) {
+            mCameraEngine.takeVideo(stub, null, fileDescriptor);
+        } else {
+            throw new IllegalStateException("file and fileDescriptor are both null.");
+        }
 //        mUiHandler.post(new Runnable() {
 //            @Override
 //            public void run() {
@@ -1124,20 +1178,6 @@ public class CameraView {
 //                if (!mKeepScreenOn) setKeepScreenOn(true);
 //            }
 //        });
-    }
-
-    public void takeVideo(@NonNull String uri) {
-        VideoResult.Stub stub = new VideoResult.Stub();
-
-        ParcelFileDescriptor descriptor = null;
-        try {
-            descriptor = context.getContentResolver().openFileDescriptor(Uri.parse(uri), "rwt");
-            stub.fileDescriptor = descriptor.getFileDescriptor();
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        }
-
-        mCameraEngine.takeVideo(stub);
     }
 
     /**
@@ -1169,9 +1209,26 @@ public class CameraView {
      *
      * @param file a file where the video will be saved
      * @param durationMillis recording max duration
-     *
      */
     public void takeVideo(@NonNull File file, int durationMillis) {
+        takeVideo(file, null, durationMillis);
+    }
+
+    /**
+     * Starts recording a video. Video will be written to the given file,
+     * so callers should ensure they have appropriate permissions to write to the file.
+     * Recording will be automatically stopped after the given duration, overriding
+     * temporarily any duration limit set by {@link #setVideoMaxDuration(int)}.
+     *
+     * @param fileDescriptor a file descriptor where the video will be saved
+     * @param durationMillis recording max duration
+     */
+    public void takeVideo(@NonNull FileDescriptor fileDescriptor, int durationMillis) {
+        takeVideo(null, fileDescriptor, durationMillis);
+    }
+
+    private void takeVideo(@Nullable File file, @Nullable FileDescriptor fileDescriptor,
+                           int durationMillis) {
         final int old = getVideoMaxDuration();
         addCameraListener(new CameraListener() {
             @Override
@@ -1190,7 +1247,7 @@ public class CameraView {
             }
         });
         setVideoMaxDuration(durationMillis);
-        takeVideo(file);
+        takeVideo(file, fileDescriptor);
     }
 
     /**

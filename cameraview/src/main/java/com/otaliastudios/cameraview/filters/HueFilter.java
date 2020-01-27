@@ -6,7 +6,7 @@ import androidx.annotation.NonNull;
 
 import com.otaliastudios.cameraview.filter.BaseFilter;
 import com.otaliastudios.cameraview.filter.OneParameterFilter;
-import com.otaliastudios.cameraview.internal.GlUtils;
+import com.otaliastudios.opengl.core.Egloo;
 
 /**
  * Applies a hue effect on the input frames.
@@ -86,7 +86,7 @@ public class HueFilter extends BaseFilter implements OneParameterFilter {
     public void onCreate(int programHandle) {
         super.onCreate(programHandle);
         hueLocation = GLES20.glGetUniformLocation(programHandle, "hue");
-        GlUtils.checkLocation(hueLocation, "hue");
+        Egloo.checkGlProgramLocation(hueLocation, "hue");
     }
 
     @Override
@@ -96,11 +96,11 @@ public class HueFilter extends BaseFilter implements OneParameterFilter {
     }
 
     @Override
-    protected void onPreDraw(long timestampUs, float[] transformMatrix) {
+    protected void onPreDraw(long timestampUs, @NonNull float[] transformMatrix) {
         super.onPreDraw(timestampUs, transformMatrix);
         // map it on 360 degree circle
         float shaderHue = ((hue - 45) / 45f + 0.5f) * -1;
         GLES20.glUniform1f(hueLocation, shaderHue);
-        GlUtils.checkError("glUniform1f");
+        Egloo.checkGlError("glUniform1f");
     }
 }
