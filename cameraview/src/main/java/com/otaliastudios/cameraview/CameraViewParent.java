@@ -5,12 +5,18 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.PointF;
+import android.os.Handler;
 import android.preference.PreferenceManager;
 import android.util.AttributeSet;
+import android.util.TypedValue;
+import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.widget.FrameLayout;
+import android.widget.ImageButton;
+import android.widget.ImageView;
 
 import androidx.annotation.ColorInt;
 import androidx.annotation.NonNull;
@@ -93,6 +99,9 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
     private Filter mPendingFilter;
     private boolean mExperimental;
     private Size mLastPreviewStreamSize;
+    private Context context;
+    private ImageView recordingStopButton;
+    private ImageView dismissButton;
     public CameraViewParent(@NonNull Context context, CameraView cameraView) {
         super(context);
         this.cameraView = cameraView;
@@ -114,6 +123,7 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
     }
 
     private void initialize(@NonNull Context context) {
+        this.context = context;
         mInEditor = isInEditMode();
         if (mInEditor) return;
         setWillNotDraw(false);
@@ -148,6 +158,109 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
         int gridColor = GridLinesLayout.DEFAULT_COLOR;
         setGrid(Grid.DEFAULT);
         setGridColor(gridColor);
+        addButtons();
+        hideButtons();
+    }
+
+    public void showButtons(){
+        dismissButton.setVisibility(VISIBLE);
+        recordingStopButton.setVisibility(VISIBLE);
+    }
+
+    public void hideButtons(){
+        mCurrentX = 0;
+        mCurrentY = 0;
+        dismissButton.setVisibility(INVISIBLE);
+        recordingStopButton.setVisibility(INVISIBLE);
+    }
+
+    private float mCurrentX = 0;
+    private float mCurrentY = 0;
+
+    @SuppressLint("ClickableViewAccessibility")
+    public void addButtons(){
+        final WindowManager windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+
+        recordingStopButton = new ImageButton(context);
+        recordingStopButton.setBackgroundColor(Color.parseColor("#00000000"));
+        recordingStopButton.setImageResource(R.drawable.stop_button);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+        lp.gravity = Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM;
+        float dp5 = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 5, context.getResources().getDisplayMetrics());
+        lp.setMargins(0,0,0, (int) dp5);
+        recordingStopButton.setLayoutParams(lp);
+
+        dismissButton = new ImageButton(context);
+        dismissButton.setBackgroundColor(Color.parseColor("#00000000"));
+        dismissButton.setImageResource(R.drawable.preview_close);
+        lp = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+        lp.gravity = Gravity.RIGHT | Gravity.TOP;
+        float dp8 = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 8, context.getResources().getDisplayMetrics());
+        lp.setMargins(0,0,(int) dp8,  0);
+        dismissButton.setLayoutParams(lp);
+
+        addView(recordingStopButton);
+        addView(dismissButton);
+
+        final boolean[] enabled = {true};
+
+        this.setOnTouchListener(new OnTouchListener() {
+            private float mDx;
+            private float mDy;
+            @Override
+            public boolean onTouch(View view, MotionEvent event) {
+                if(recordingStopButton.getVisibility() == INVISIBLE){
+                    return true;
+                }
+
+                int action = event.getAction();
+                if (action == MotionEvent.ACTION_DOWN) {
+                    mDx = mCurrentX - event.getRawX();
+                    mDy = mCurrentY - event.getRawY();
+                } else
+                if (action == MotionEvent.ACTION_MOVE) {
+                    mCurrentX = (int) (event.getRawX() + mDx);
+                    mCurrentY = (int) (event.getRawY() + mDy);
+                    WindowManager.LayoutParams layoutParams = (WindowManager.LayoutParams) getLayoutParams();
+                    layoutParams.x = (int) mCurrentX;
+                    layoutParams.y = (int) mCurrentY;
+                    layoutParams.height = view.getHeight();
+                    layoutParams.width = view.getWidth();
+                    windowManager.updateViewLayout(view, layoutParams);
+                }
+
+                if(!enabled[0]){
+                    return true;
+                }
+
+                enabled[0] = false;
+
+                new Handler().postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        enabled[0] = true;
+                    }
+                }, 500);
+
+                int x = (int)event.getX();
+                int y = (int)event.getY();
+
+                if(x >= recordingStopButton.getLeft() && x <= recordingStopButton.getRight()
+                        && y >= recordingStopButton.getTop() && y<= recordingStopButton.getBottom()) {
+                    if(cameraView.isTakingVideo()){
+                        cameraView.getCameraCallbacks().dispatchHidePreview();
+                        cameraView.stopVideo();
+                    }
+                }
+
+                if(x >= dismissButton.getLeft() && x <= dismissButton.getRight()
+                        && y >= dismissButton.getTop() && y<= dismissButton.getBottom()) {
+                    cameraView.getCameraCallbacks().dispatchHidePreview();
+                }
+
+                return true;
+            }
+        });
     }
 
     /**

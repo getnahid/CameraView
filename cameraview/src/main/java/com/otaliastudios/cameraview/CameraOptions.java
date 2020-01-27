@@ -2,44 +2,35 @@ package com.otaliastudios.cameraview;
 
 
 import android.graphics.ImageFormat;
-import android.hardware.Camera;
-import android.hardware.camera2.CameraAccessException;
-import android.hardware.camera2.CameraCharacteristics;
-import android.hardware.camera2.CameraManager;
-import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.CamcorderProfile;
-import android.media.MediaRecorder;
 import android.os.Build;
-import android.util.Range;
-import android.util.Rational;
+
+import androidx.annotation.NonNull;
 
 import com.otaliastudios.cameraview.controls.Audio;
 import com.otaliastudios.cameraview.controls.Control;
 import com.otaliastudios.cameraview.controls.Engine;
 import com.otaliastudios.cameraview.controls.Facing;
 import com.otaliastudios.cameraview.controls.Flash;
-import com.otaliastudios.cameraview.controls.PictureFormat;
-import com.otaliastudios.cameraview.controls.Preview;
-import com.otaliastudios.cameraview.engine.mappers.Camera1Mapper;
-import com.otaliastudios.cameraview.engine.mappers.Camera2Mapper;
-import com.otaliastudios.cameraview.gesture.GestureAction;
 import com.otaliastudios.cameraview.controls.Grid;
 import com.otaliastudios.cameraview.controls.Hdr;
 import com.otaliastudios.cameraview.controls.Mode;
+import com.otaliastudios.cameraview.controls.PictureFormat;
+import com.otaliastudios.cameraview.controls.Preview;
 import com.otaliastudios.cameraview.controls.VideoCodec;
 import com.otaliastudios.cameraview.controls.WhiteBalance;
-import com.otaliastudios.cameraview.internal.utils.CamcorderProfiles;
+import com.otaliastudios.cameraview.gesture.GestureAction;
 import com.otaliastudios.cameraview.size.AspectRatio;
 import com.otaliastudios.cameraview.size.Size;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.RequiresApi;
-
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -151,6 +142,32 @@ public abstract class CameraOptions {
     @NonNull
     public final Collection<AspectRatio> getSupportedPictureAspectRatios() {
         return Collections.unmodifiableSet(supportedPictureAspectRatio);
+    }
+
+    protected static Map<Integer, Integer> sizeToProfileMap = new HashMap<>();
+    static {
+        if (Build.VERSION.SDK_INT >= 21) {
+            sizeToProfileMap.put(2160, CamcorderProfile.QUALITY_2160P);
+        }
+        sizeToProfileMap.put(1080, CamcorderProfile.QUALITY_1080P);
+        sizeToProfileMap.put(720, CamcorderProfile.QUALITY_720P);
+        sizeToProfileMap.put(480, CamcorderProfile.QUALITY_480P);
+        sizeToProfileMap.put(288, CamcorderProfile.QUALITY_CIF);
+        sizeToProfileMap.put(240, CamcorderProfile.QUALITY_QVGA);
+        sizeToProfileMap.put(144, CamcorderProfile.QUALITY_QCIF);
+    }
+
+    protected static List<Size> sizeList = new ArrayList<>();
+    static {
+        if (Build.VERSION.SDK_INT >= 21) {
+            sizeList.add(new Size(3840, 2160));
+        }
+        sizeList.add(new Size(1920,1080));
+        sizeList.add(new Size(1280,720));
+        sizeList.add(new Size(720,480));
+        sizeList.add(new Size(352,288));
+        sizeList.add(new Size(320,240));
+        sizeList.add(new Size(176,144));
     }
 
     /**

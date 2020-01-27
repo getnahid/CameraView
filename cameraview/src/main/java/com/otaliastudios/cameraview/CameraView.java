@@ -17,7 +17,6 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
-import android.preference.PreferenceManager;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -68,6 +67,8 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static android.content.Context.MODE_PRIVATE;
 
 /**
  * Entry point for the whole library.
@@ -120,6 +121,7 @@ public class CameraView {
     private Context context;
     private CameraViewParent cameraViewParent;
     private ControlParser controlParser;
+    private SizeSelectorParser sizeSelectors;
     @VisibleForTesting OverlayLayout mOverlayLayout;
 
     public static final String KEY_CAMERA_PLAY_SOUND = "CameraView_cameraPlaySounds";
@@ -165,8 +167,8 @@ public class CameraView {
     private void initialize(@NonNull Context context) {
         //setWillNotDraw(false);
         //TypedArray a = context.getTheme().obtainStyledAttributes(attrs, R.styleable.CameraView, 0, 0);
-        preference = PreferenceManager.getDefaultSharedPreferences(context);
-        controlParser = new ControlParser(context);
+        preference = context.getSharedPreferences("camera_view", MODE_PRIVATE);
+        controlParser = new ControlParser(context, preference);
 
         // Self managed
         boolean playSounds = preference.getBoolean(KEY_CAMERA_PLAY_SOUND, DEFAULT_PLAY_SOUNDS);
@@ -198,7 +200,7 @@ public class CameraView {
 
 
         // Size selectors and gestures
-        SizeSelectorParser sizeSelectors = new SizeSelectorParser(preference);
+        sizeSelectors = new SizeSelectorParser(preference);
         FilterParser filters = new FilterParser(preference);
 
         //a.recycle();
@@ -255,6 +257,10 @@ public class CameraView {
 
     public CameraCallbacks getCameraCallbacks(){
         return mCameraCallbacks;
+    }
+
+    public SizeSelectorParser getSizeSelectorParser(){
+        return sizeSelectors;
     }
 
     /**
@@ -424,6 +430,9 @@ public class CameraView {
         clearFrameProcessors();
         mCameraEngine.destroy(true);
         //if (mCameraPreview != null) mCameraPreview.onDestroy();
+        if(cameraViewParent != null){
+            cameraViewParent.destroy();
+        }
     }
 
     //endregion
@@ -743,12 +752,10 @@ public class CameraView {
         Facing facing = mCameraEngine.getFacing();
         switch (facing) {
             case BACK:
-                controlParser.setFacing(Facing.FRONT);
                 setFacing(Facing.FRONT);
                 break;
 
             case FRONT:
-                controlParser.setFacing(Facing.BACK);
                 setFacing(Facing.BACK);
                 break;
         }
@@ -767,7 +774,6 @@ public class CameraView {
      * @param flash desired flash mode.
      */
     public void setFlash(@NonNull Flash flash) {
-        controlParser.setFlash(flash.value);
         mCameraEngine.setFlash(flash);
     }
 
@@ -794,12 +800,10 @@ public class CameraView {
 
         if (audio == getAudio() || isClosed()) {
             // Check did took place, or will happen on start().
-            controlParser.setAudio(audio.value);
             mCameraEngine.setAudio(audio);
 
         } else if (checkPermissions(audio)) {
             // Camera is running. Pass.
-            controlParser.setAudio(audio.value);
             mCameraEngine.setAudio(audio);
 
         } else {
@@ -1796,6 +1800,19 @@ public class CameraView {
                 public void run() {
                     for (CameraListener listener : mListeners) {
                         listener.onVideoRecordingEnd();
+                    }
+                }
+            });
+        }
+
+        @Override
+        public void dispatchHidePreview() {
+            LOG.i("dispatchOnVideoRecordingEnd");
+            mUiHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    for (CameraListener listener : mListeners) {
+                        listener.onHidePreview();
                     }
                 }
             });

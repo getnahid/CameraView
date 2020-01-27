@@ -162,4 +162,8 @@ public abstract class CameraListener {
 
     }
 
+    public void onHidePreview() {
+
+    }
+
 }

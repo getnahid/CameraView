@@ -150,6 +150,20 @@ public class Camera2Options extends CameraOptions {
             }
         }
 
+//        for (int i = 0; i < sizeList.size(); i++) {
+//            Size size = sizeList.get(i);
+//            int camProfile = sizeToProfileMap.get(size.getHeight());
+//            if (size.getWidth() <= videoMaxSize.getWidth()
+//                    && size.getHeight() <= videoMaxSize.getHeight()) {
+//                int width = flipSizes ? size.getHeight() : size.getWidth();
+//                int height = flipSizes ? size.getWidth() : size.getHeight();
+//                if(CamcorderProfile.hasProfile(camProfile)){
+//                    supportedVideoSizes.add(new Size(width, height));
+//                }
+//                supportedVideoAspectRatio.add(AspectRatio.of(width, height));
+//            }
+//        }
+
         // Preview FPS
         Range<Integer>[] range = cameraCharacteristics.get(CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
         if (range != null) {

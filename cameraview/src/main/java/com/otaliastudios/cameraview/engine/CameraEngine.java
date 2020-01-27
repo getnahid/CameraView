@@ -125,6 +125,7 @@ public abstract class CameraEngine implements
         void dispatchOnVideoRecordingStart();
         void dispatchOnVideoRecordingEnd();
         void dispatchOnCameraBinded();
+        void dispatchHidePreview();
     }
 
     protected static final String TAG = CameraEngine.class.getSimpleName();
@@ -308,7 +309,8 @@ public abstract class CameraEngine implements
                     }
                 });
         try {
-            boolean success = latch.await(6, TimeUnit.SECONDS);
+            //boolean success = latch.await(6, TimeUnit.SECONDS);
+            boolean success = latch.await(1, TimeUnit.SECONDS);
             if (!success) {
                 // This thread is likely stuck. The reason might be deadlock issues in the internal
                 // camera implementation, at least in emulators: see Camera1Engine and Camera2Engine
@@ -526,7 +528,15 @@ public abstract class CameraEngine implements
             @Override
             public Task<Void> call() {
                 if(isSurfaceAvailable && cameraParentCallback != null){
-                    cameraParentCallback.onSurfaceAvailableAndOnBinded();
+
+                    mCrashHandler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            if(cameraParentCallback != null){
+                                cameraParentCallback.onSurfaceAvailableAndOnBinded();
+                            }
+                        }
+                    });
                 }
 
                 return onStartPreview();

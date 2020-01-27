@@ -1,11 +1,8 @@
 package com.otaliastudios.cameraview.size;
 
 import android.content.SharedPreferences;
-import android.content.res.TypedArray;
 
 import androidx.annotation.NonNull;
-
-import com.otaliastudios.cameraview.R;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,6 +14,7 @@ public class SizeSelectorParser {
 
     private SizeSelector pictureSizeSelector;
     private SizeSelector videoSizeSelector;
+    private SharedPreferences preference;
 
     public static final String KEY_PICTURE_SIZE_MIN_WIDTH = "CameraView_cameraPictureSizeMinWidth";
     public static final String KEY_PICTURE_SIZE_MAX_WIDTH = "CameraView_cameraPictureSizeMaxWidth";
@@ -39,6 +37,29 @@ public class SizeSelectorParser {
     public static final String KEY_VIDEO_SIZE_BIGGEST = "CameraView_cameraVideoSizeBiggest";
 
     public SizeSelectorParser(SharedPreferences preference) {
+        this.preference = preference;
+        getPictureSizeSelector();
+        getVideoSizeSelector();
+    }
+
+    public int getVideoSizeMaxWidth(){
+        return preference.getInt(KEY_VIDEO_SIZE_MAX_WIDTH, 0);
+    }
+
+    public void setVideoSizeMaxWidth(int width){
+        preference.edit().putInt(KEY_VIDEO_SIZE_MAX_WIDTH, width).apply();
+    }
+
+    public int getVideoSizeMaxHeight(){
+        return preference.getInt(KEY_VIDEO_SIZE_MAX_HEIGHT, 0);
+    }
+
+    public void setVideoSizeMaxHeight(int height){
+        preference.edit().putInt(KEY_VIDEO_SIZE_MAX_HEIGHT, height).apply();
+    }
+
+    @NonNull
+    public SizeSelector getPictureSizeSelector() {
         List<SizeSelector> pictureConstraints = new ArrayList<>(3);
         if (preference.getInt(KEY_PICTURE_SIZE_MIN_WIDTH, 0) != 0) {
             pictureConstraints.add(SizeSelectors.minWidth(preference.getInt(KEY_PICTURE_SIZE_MIN_WIDTH, 0)));
@@ -68,7 +89,11 @@ public class SizeSelectorParser {
         pictureSizeSelector = !pictureConstraints.isEmpty() ?
                 SizeSelectors.and(pictureConstraints.toArray(new SizeSelector[0])) :
                 SizeSelectors.biggest();
+        return pictureSizeSelector;
+    }
 
+    @NonNull
+    public SizeSelector getVideoSizeSelector() {
         // Video size selector
         List<SizeSelector> videoConstraints = new ArrayList<>(3);
         if (preference.getInt(KEY_VIDEO_SIZE_MIN_WIDTH, 0) != 0) {
@@ -98,15 +123,7 @@ public class SizeSelectorParser {
         videoSizeSelector = !videoConstraints.isEmpty() ?
                 SizeSelectors.and(videoConstraints.toArray(new SizeSelector[0])) :
                 SizeSelectors.biggest();
-    }
 
-    @NonNull
-    public SizeSelector getPictureSizeSelector() {
-        return pictureSizeSelector;
-    }
-
-    @NonNull
-    public SizeSelector getVideoSizeSelector() {
         return videoSizeSelector;
     }
 

@@ -52,7 +52,7 @@ public enum Flash implements Control {
         this.value = value;
     }
 
-    int value() {
+    public int value() {
         return value;
     }
 
