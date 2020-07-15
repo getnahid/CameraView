@@ -30,6 +30,7 @@ public abstract class BaseAction implements Action {
     private final List<ActionCallback> callbacks = new ArrayList<>();
     private int state;
     private ActionHolder holder;
+    private boolean needsOnStart;
 
     @Override
     public final int getState() {
@@ -38,8 +39,13 @@ public abstract class BaseAction implements Action {
 
     @Override
     public final void start(@NonNull ActionHolder holder) {
+        this.holder = holder;
         holder.addAction(this);
-        onStart(holder);
+        if (holder.getLastResult(this) != null) {
+            onStart(holder);
+        } else {
+            needsOnStart = true;
+        }
     }
 
     @Override
@@ -49,6 +55,7 @@ public abstract class BaseAction implements Action {
             onAbort(holder);
             setState(STATE_COMPLETED);
         }
+        needsOnStart = false;
     }
 
     /**
@@ -58,7 +65,9 @@ public abstract class BaseAction implements Action {
      */
     @CallSuper
     protected void onStart(@NonNull ActionHolder holder) {
-        this.holder = holder; // must be here
+        // Repeating holder assignment here (already in start()) because we NEED it in start()
+        // but some special actions will not call start() at all for their children.
+        this.holder = holder;
         // Overrideable
     }
 
@@ -72,9 +81,13 @@ public abstract class BaseAction implements Action {
         // Overrideable
     }
 
+    @CallSuper
     @Override
     public void onCaptureStarted(@NonNull ActionHolder holder, @NonNull CaptureRequest request) {
-        // Overrideable
+        if (needsOnStart) {
+            onStart(holder);
+            needsOnStart = false;
+        }
     }
 
     @Override
@@ -103,8 +116,10 @@ public abstract class BaseAction implements Action {
                 callback.onActionStateChanged(this, state);
             }
             if (state == STATE_COMPLETED) {
-                holder.removeAction(this);
-                onCompleted(holder);
+                if(holder != null){
+                    holder.removeAction(this);
+                    onCompleted(holder);
+                }
             }
         }
     }

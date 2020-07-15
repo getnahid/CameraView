@@ -6,7 +6,7 @@ import androidx.annotation.NonNull;
 
 import com.otaliastudios.cameraview.filter.BaseFilter;
 import com.otaliastudios.cameraview.filter.OneParameterFilter;
-import com.otaliastudios.cameraview.internal.GlUtils;
+import com.otaliastudios.opengl.core.Egloo;
 
 /**
  * Adjusts the brightness of the frames.
@@ -76,7 +76,7 @@ public class BrightnessFilter extends BaseFilter implements OneParameterFilter {
     public void onCreate(int programHandle) {
         super.onCreate(programHandle);
         brightnessLocation = GLES20.glGetUniformLocation(programHandle, "brightness");
-        GlUtils.checkLocation(brightnessLocation, "brightness");
+        Egloo.checkGlProgramLocation(brightnessLocation, "brightness");
     }
 
     @Override
@@ -86,9 +86,9 @@ public class BrightnessFilter extends BaseFilter implements OneParameterFilter {
     }
 
     @Override
-    protected void onPreDraw(long timestampUs, float[] transformMatrix) {
+    protected void onPreDraw(long timestampUs, @NonNull float[] transformMatrix) {
         super.onPreDraw(timestampUs, transformMatrix);
         GLES20.glUniform1f(brightnessLocation, brightness);
-        GlUtils.checkError("glUniform1f");
+        Egloo.checkGlError("glUniform1f");
     }
 }

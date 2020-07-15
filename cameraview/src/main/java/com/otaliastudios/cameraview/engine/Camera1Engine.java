@@ -9,32 +9,37 @@ import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
 import android.location.Location;
 import android.os.Build;
+import android.view.SurfaceHolder;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
-import android.util.Range;
-import android.view.SurfaceHolder;
-
 import com.google.android.gms.tasks.Task;
 import com.google.android.gms.tasks.Tasks;
 import com.otaliastudios.cameraview.CameraException;
-import com.otaliastudios.cameraview.CameraLogger;
 import com.otaliastudios.cameraview.CameraOptions;
-import com.otaliastudios.cameraview.engine.mappers.Camera1Mapper;
-import com.otaliastudios.cameraview.engine.offset.Axis;
-import com.otaliastudios.cameraview.engine.offset.Reference;
-import com.otaliastudios.cameraview.frame.Frame;
 import com.otaliastudios.cameraview.PictureResult;
 import com.otaliastudios.cameraview.VideoResult;
 import com.otaliastudios.cameraview.controls.Facing;
 import com.otaliastudios.cameraview.controls.Flash;
-import com.otaliastudios.cameraview.frame.FrameManager;
-import com.otaliastudios.cameraview.gesture.Gesture;
 import com.otaliastudios.cameraview.controls.Hdr;
 import com.otaliastudios.cameraview.controls.Mode;
+import com.otaliastudios.cameraview.controls.PictureFormat;
 import com.otaliastudios.cameraview.controls.WhiteBalance;
-import com.otaliastudios.cameraview.internal.utils.CropHelper;
+import com.otaliastudios.cameraview.engine.mappers.Camera1Mapper;
+import com.otaliastudios.cameraview.engine.metering.Camera1MeteringTransform;
+import com.otaliastudios.cameraview.engine.offset.Axis;
+import com.otaliastudios.cameraview.engine.offset.Reference;
+import com.otaliastudios.cameraview.engine.options.Camera1Options;
+import com.otaliastudios.cameraview.engine.orchestrator.CameraState;
+import com.otaliastudios.cameraview.frame.ByteBufferFrameManager;
+import com.otaliastudios.cameraview.frame.Frame;
+import com.otaliastudios.cameraview.frame.FrameManager;
+import com.otaliastudios.cameraview.gesture.Gesture;
+import com.otaliastudios.cameraview.internal.CropHelper;
+import com.otaliastudios.cameraview.metering.MeteringRegions;
+import com.otaliastudios.cameraview.metering.MeteringTransform;
 import com.otaliastudios.cameraview.picture.Full1PictureRecorder;
 import com.otaliastudios.cameraview.picture.Snapshot1PictureRecorder;
 import com.otaliastudios.cameraview.picture.SnapshotGlPictureRecorder;
@@ -46,17 +51,17 @@ import com.otaliastudios.cameraview.video.SnapshotVideoRecorder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 
-@SuppressWarnings("deprecation")
-public class Camera1Engine extends CameraEngine implements
+public class Camera1Engine extends CameraBaseEngine implements
         Camera.PreviewCallback,
         Camera.ErrorCallback,
-        FrameManager.BufferCallback {
-
-    private static final String TAG = Camera1Engine.class.getSimpleName();
-    private static final CameraLogger LOG = CameraLogger.create(TAG);
+        ByteBufferFrameManager.BufferCallback {
+    private static final String JOB_FOCUS_RESET = "focus reset";
+    private static final String JOB_FOCUS_END = "focus end";
 
     private static final int PREVIEW_FORMAT = ImageFormat.NV21;
     @VisibleForTesting static final int AUTOFOCUS_END_DELAY_MILLIS = 2500;
@@ -64,7 +69,6 @@ public class Camera1Engine extends CameraEngine implements
     private final Camera1Mapper mMapper = Camera1Mapper.get();
     private Camera mCamera;
     @VisibleForTesting int mCameraId;
-    private Runnable mFocusEndRunnable;
 
     public Camera1Engine(@NonNull Callback callback) {
         super(callback);
@@ -74,20 +78,15 @@ public class Camera1Engine extends CameraEngine implements
 
     @Override
     public void onError(int error, Camera camera) {
-        if (error == Camera.CAMERA_ERROR_SERVER_DIED) {
-            // Looks like this is recoverable.
-            LOG.w("Recoverable error inside the onError callback.",
-                    "CAMERA_ERROR_SERVER_DIED");
-            restart();
-            return;
-        }
-
         String message = LOG.e("Internal Camera1 error.", error);
         Exception runtime = new RuntimeException(message);
         int reason;
         switch (error) {
-            case Camera.CAMERA_ERROR_EVICTED: reason = CameraException.REASON_DISCONNECTED; break;
-            case Camera.CAMERA_ERROR_UNKNOWN: reason = CameraException.REASON_UNKNOWN; break;
+            case Camera.CAMERA_ERROR_SERVER_DIED:
+            case Camera.CAMERA_ERROR_EVICTED:
+                reason = CameraException.REASON_DISCONNECTED; break;
+            case Camera.CAMERA_ERROR_UNKNOWN: // Pass DISCONNECTED which is considered unrecoverable
+                reason = CameraException.REASON_DISCONNECTED; break;
             default: reason = CameraException.REASON_UNKNOWN;
         }
         throw new CameraException(runtime, reason);
@@ -112,14 +111,23 @@ public class Camera1Engine extends CameraEngine implements
     }
 
     @EngineThread
+    @NonNull
     @Override
-    protected void onPreviewStreamSizeChanged() {
-        restartPreview();
+    protected List<Size> getFrameProcessingAvailableSizes() {
+        // We don't choose the frame processing size.
+        // It comes from the preview stream.
+        return Collections.singletonList(mPreviewStreamSize);
     }
 
     @EngineThread
     @Override
-    protected boolean collectCameraInfo(@NonNull Facing facing) {
+    protected void onPreviewStreamSizeChanged() {
+        //restartPreview();
+    }
+
+    @EngineThread
+    @Override
+    public boolean collectCameraInfo(@NonNull Facing facing) {
         int internalFacing = mMapper.mapFacing(facing);
         LOG.i("collectCameraInfo",
                 "Facing:", facing,
@@ -137,6 +145,12 @@ public class Camera1Engine extends CameraEngine implements
         return false;
     }
 
+    @EngineThread
+    @Override
+    public int getCameraId() {
+        return mCameraId;
+    }
+
     //endregion
 
     //region Start
@@ -144,7 +158,7 @@ public class Camera1Engine extends CameraEngine implements
     @NonNull
     @EngineThread
     @Override
-    protected Task<Void> onStartEngine() {
+    protected Task<CameraOptions> onStartEngine() {
         try {
             mCamera = Camera.open(mCameraId);
         } catch (Exception e) {
@@ -156,14 +170,14 @@ public class Camera1Engine extends CameraEngine implements
         // Set parameters that might have been set before the camera was opened.
         LOG.i("onStartEngine:", "Applying default parameters.");
         Camera.Parameters params = mCamera.getParameters();
-        mCameraOptions = new CameraOptions(params, mCameraId,
+        mCameraOptions = new Camera1Options(params, mCameraId,
                 getAngles().flip(Reference.SENSOR, Reference.VIEW));
         applyAllParameters(params);
         mCamera.setParameters(params);
         mCamera.setDisplayOrientation(getAngles().offset(Reference.SENSOR, Reference.VIEW,
                 Axis.ABSOLUTE)); // <- not allowed during preview
         LOG.i("onStartEngine:", "Ended");
-        return Tasks.forResult(null);
+        return Tasks.forResult(mCameraOptions);
     }
 
     @EngineThread
@@ -171,12 +185,11 @@ public class Camera1Engine extends CameraEngine implements
     @Override
     protected Task<Void> onStartBind() {
         LOG.i("onStartBind:", "Started");
-        Object output = mPreview.getOutput();
         try {
-            if (output instanceof SurfaceHolder) {
-                mCamera.setPreviewDisplay((SurfaceHolder) output);
-            } else if (output instanceof SurfaceTexture) {
-                mCamera.setPreviewTexture((SurfaceTexture) output);
+            if (mPreview.getOutputClass() == SurfaceHolder.class) {
+                mCamera.setPreviewDisplay((SurfaceHolder) mPreview.getOutput());
+            } else if (mPreview.getOutputClass() == SurfaceTexture.class) {
+                mCamera.setPreviewTexture((SurfaceTexture) mPreview.getOutput());
             } else {
                 throw new RuntimeException("Unknown CameraPreview output class.");
             }
@@ -195,7 +208,7 @@ public class Camera1Engine extends CameraEngine implements
     @Override
     protected Task<Void> onStartPreview() {
         LOG.i("onStartPreview", "Dispatching onCameraPreviewStreamSizeChanged.");
-        mCallback.onCameraPreviewStreamSizeChanged();
+        getCallback().onCameraPreviewStreamSizeChanged();
 
         Size previewSize = getPreviewStreamSize(Reference.VIEW);
         if (previewSize == null) {
@@ -225,7 +238,7 @@ public class Camera1Engine extends CameraEngine implements
 
         mCamera.setPreviewCallbackWithBuffer(null); // Release anything left
         mCamera.setPreviewCallbackWithBuffer(this); // Add ourselves
-        getFrameManager().setUp(PREVIEW_FORMAT, mPreviewStreamSize);
+        getFrameManager().setUp(PREVIEW_FORMAT, mPreviewStreamSize, getAngles());
 
         LOG.i("onStartPreview", "Starting preview with startPreview().");
         try {
@@ -246,15 +259,19 @@ public class Camera1Engine extends CameraEngine implements
     @NonNull
     @Override
     protected Task<Void> onStopPreview() {
+        LOG.i("onStopPreview:", "Started.");
         if (mVideoRecorder != null) {
             mVideoRecorder.stop(true);
             mVideoRecorder = null;
         }
         mPictureRecorder = null;
         getFrameManager().release();
+        LOG.i("onStopPreview:", "Releasing preview buffers.");
         mCamera.setPreviewCallbackWithBuffer(null); // Release anything left
         try {
+            LOG.i("onStopPreview:", "Stopping preview.");
             mCamera.stopPreview();
+            LOG.i("onStopPreview:", "Stopped preview.");
         } catch (Exception e) {
             LOG.e("stopPreview", "Could not stop preview", e);
         }
@@ -268,15 +285,19 @@ public class Camera1Engine extends CameraEngine implements
         mPreviewStreamSize = null;
         mCaptureSize = null;
         try {
-            if (mPreview.getOutputClass() == SurfaceHolder.class) {
-                mCamera.setPreviewDisplay(null);
-            } else if (mPreview.getOutputClass() == SurfaceTexture.class) {
-                mCamera.setPreviewTexture(null);
-            } else {
-                throw new RuntimeException("Unknown CameraPreview output class.");
+            if(mCamera != null) {
+                if (mPreview.getOutputClass() == SurfaceHolder.class) {
+                    mCamera.setPreviewDisplay(null);
+                } else if (mPreview.getOutputClass() == SurfaceTexture.class) {
+                    mCamera.setPreviewTexture(null);
+                } else {
+                    throw new RuntimeException("Unknown CameraPreview output class.");
+                }
             }
         } catch (IOException e) {
-            LOG.e("unbindFromSurface", "Could not release surface", e);
+            // NOTE: when this happens, the next onStopEngine() call hangs on camera.release(),
+            // Not sure for how long. This causes the destroy() flow to fail the timeout.
+            LOG.e("onStopBind", "Could not release surface", e);
         }
         return Tasks.forResult(null);
     }
@@ -286,13 +307,25 @@ public class Camera1Engine extends CameraEngine implements
     @Override
     protected Task<Void> onStopEngine() {
         LOG.i("onStopEngine:", "About to clean up.");
-        mHandler.remove(mFocusResetRunnable);
-        if (mFocusEndRunnable != null) {
-            mHandler.remove(mFocusEndRunnable);
-        }
+        getOrchestrator().remove(JOB_FOCUS_RESET);
+        getOrchestrator().remove(JOB_FOCUS_END);
         if (mCamera != null) {
             try {
                 LOG.i("onStopEngine:", "Clean up.", "Releasing camera.");
+                // Just like Camera2Engine, this call can hang (at least on emulators) and if
+                // we don't find a way around the lock, it leaves the camera in a bad state.
+                // This is anticipated by the exception in onStopBind() (see above).
+                //
+                // 12:29:32.163 E Camera3-Device: Camera 0: clearStreamingRequest: Device has encountered a serious error[0m
+                // 12:29:32.163 E Camera2-StreamingProcessor: stopStream: Camera 0: Can't clear stream request: Function not implemented (-38)[0m
+                // 12:29:32.163 E Camera2Client: stopPreviewL: Camera 0: Can't stop streaming: Function not implemented (-38)[0m
+                // 12:29:32.273 E Camera2-StreamingProcessor: deletePreviewStream: Unable to delete old preview stream: Device or resource busy (-16)[0m
+                // 12:29:32.274 E Camera2-CallbackProcessor: deleteStream: Unable to delete callback stream: Device or resource busy (-16)[0m
+                // 12:29:32.274 E Camera3-Device: Camera 0: disconnect: Shutting down in an error state[0m
+                //
+                // I believe there is a thread deadlock due to this call internally waiting to
+                // dispatch some callback to us (pending captures, ...), but the callback thread
+                // is blocked here. We try to workaround this in CameraEngine.destroy().
                 mCamera.release();
                 LOG.i("onStopEngine:", "Clean up.", "Released camera.");
             } catch (Exception e) {
@@ -315,11 +348,13 @@ public class Camera1Engine extends CameraEngine implements
     @EngineThread
     @Override
     protected void onTakePicture(@NonNull PictureResult.Stub stub, boolean doMetering) {
+        LOG.i("onTakePicture:", "executing.");
         stub.rotation = getAngles().offset(Reference.SENSOR, Reference.OUTPUT,
                 Axis.RELATIVE_TO_SENSOR);
         stub.size = getPictureSize(Reference.OUTPUT);
         mPictureRecorder = new Full1PictureRecorder(stub, Camera1Engine.this, mCamera);
         mPictureRecorder.take();
+        LOG.i("onTakePicture:", "executed.");
     }
 
     @EngineThread
@@ -327,6 +362,7 @@ public class Camera1Engine extends CameraEngine implements
     protected void onTakePictureSnapshot(@NonNull PictureResult.Stub stub,
                                          @NonNull AspectRatio outputRatio,
                                          boolean doMetering) {
+        LOG.i("onTakePictureSnapshot:", "executing.");
         // Not the real size: it will be cropped to match the view ratio
         stub.size = getUncroppedSnapshotSize(Reference.OUTPUT);
         // Actually it will be rotated and set to 0.
@@ -337,6 +373,7 @@ public class Camera1Engine extends CameraEngine implements
             mPictureRecorder = new Snapshot1PictureRecorder(stub, this, mCamera, outputRatio);
         }
         mPictureRecorder.take();
+        LOG.i("onTakePictureSnapshot:", "executed.");
     }
 
     //endregion
@@ -348,6 +385,7 @@ public class Camera1Engine extends CameraEngine implements
     protected void onTakeVideo(@NonNull VideoResult.Stub stub) {
         stub.rotation = getAngles().offset(Reference.SENSOR, Reference.OUTPUT,
                 Axis.RELATIVE_TO_SENSOR);
+        mCaptureSize = computeCaptureSize();
         stub.size = getAngles().flip(Reference.SENSOR, Reference.OUTPUT) ? mCaptureSize.flip()
                 : mCaptureSize;
         // Unlock the camera and start recording.
@@ -406,7 +444,11 @@ public class Camera1Engine extends CameraEngine implements
         super.onVideoResult(result, exception);
         if (result == null) {
             // Something went wrong, lock the camera again.
-            mCamera.lock();
+            try {
+                mCamera.lock();
+            } catch (Exception e) {
+                throw  new CameraException(new Throwable(), CameraException.REASON_CAMERA_USED_BY_OTHER_APP);
+            }
         }
     }
 
@@ -416,15 +458,19 @@ public class Camera1Engine extends CameraEngine implements
 
     private void applyAllParameters(@NonNull Camera.Parameters params) {
         params.setRecordingHint(getMode() == Mode.VIDEO);
-        applyDefaultFocus(params);
         applyFlash(params, Flash.OFF);
         applyLocation(params, null);
-        applyWhiteBalance(params, WhiteBalance.AUTO);
-        applyHdr(params, Hdr.OFF);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            applyDefaultFocus(params);
+            applyWhiteBalance(params, WhiteBalance.AUTO);
+            applyExposureCorrection(params, 0F);
+            applyPreviewFrameRate(params, 0F);
+            applyHdr(params, Hdr.OFF);
+        }
+
         applyZoom(params, 0F);
-        applyExposureCorrection(params, 0F);
         applyPlaySounds(mPlaySounds);
-        applyPreviewFrameRate(params, 0F);
     }
 
     private void applyDefaultFocus(@NonNull Camera.Parameters params) {
@@ -457,14 +503,13 @@ public class Camera1Engine extends CameraEngine implements
     public void setFlash(@NonNull Flash flash) {
         final Flash old = mFlash;
         mFlash = flash;
-        mHandler.run(new Runnable() {
+        mFlashTask = getOrchestrator().scheduleStateful("flash (" + flash + ")",
+                CameraState.ENGINE,
+                new Runnable() {
             @Override
             public void run() {
-                if (getEngineState() == STATE_STARTED) {
-                    Camera.Parameters params = mCamera.getParameters();
-                    if (applyFlash(params, old)) mCamera.setParameters(params);
-                }
-                mFlashOp.end(null);
+                Camera.Parameters params = mCamera.getParameters();
+                if (applyFlash(params, old)) mCamera.setParameters(params);
             }
         });
     }
@@ -482,14 +527,13 @@ public class Camera1Engine extends CameraEngine implements
     public void setLocation(@Nullable Location location) {
         final Location oldLocation = mLocation;
         mLocation = location;
-        mHandler.run(new Runnable() {
+        mLocationTask = getOrchestrator().scheduleStateful("location",
+                CameraState.ENGINE,
+                new Runnable() {
             @Override
             public void run() {
-                if (getEngineState() == STATE_STARTED) {
-                    Camera.Parameters params = mCamera.getParameters();
-                    if (applyLocation(params, oldLocation)) mCamera.setParameters(params);
-                }
-                mLocationOp.end(null);
+                Camera.Parameters params = mCamera.getParameters();
+                if (applyLocation(params, oldLocation)) mCamera.setParameters(params);
             }
         });
     }
@@ -510,14 +554,14 @@ public class Camera1Engine extends CameraEngine implements
     public void setWhiteBalance(@NonNull WhiteBalance whiteBalance) {
         final WhiteBalance old = mWhiteBalance;
         mWhiteBalance = whiteBalance;
-        mHandler.run(new Runnable() {
+        mWhiteBalanceTask = getOrchestrator().scheduleStateful(
+                "white balance (" + whiteBalance + ")",
+                CameraState.ENGINE,
+                new Runnable() {
             @Override
             public void run() {
-                if (getEngineState() == STATE_STARTED) {
-                    Camera.Parameters params = mCamera.getParameters();
-                    if (applyWhiteBalance(params, old)) mCamera.setParameters(params);
-                }
-                mWhiteBalanceOp.end(null);
+                Camera.Parameters params = mCamera.getParameters();
+                if (applyWhiteBalance(params, old)) mCamera.setParameters(params);
             }
         });
     }
@@ -525,7 +569,11 @@ public class Camera1Engine extends CameraEngine implements
     private boolean applyWhiteBalance(@NonNull Camera.Parameters params,
                                       @NonNull WhiteBalance oldWhiteBalance) {
         if (mCameraOptions.supports(mWhiteBalance)) {
+            // If this lock key is present, the engine can throw when applying the
+            // parameters, not sure why. Since we never lock it, this should be
+            // harmless for the rest of the engine.
             params.setWhiteBalance(mMapper.mapWhiteBalance(mWhiteBalance));
+            params.remove("auto-whitebalance-lock");
             return true;
         }
         mWhiteBalance = oldWhiteBalance;
@@ -536,14 +584,13 @@ public class Camera1Engine extends CameraEngine implements
     public void setHdr(@NonNull Hdr hdr) {
         final Hdr old = mHdr;
         mHdr = hdr;
-        mHandler.run(new Runnable() {
+        mHdrTask = getOrchestrator().scheduleStateful("hdr (" + hdr + ")",
+                CameraState.ENGINE,
+                new Runnable() {
             @Override
             public void run() {
-                if (getEngineState() == STATE_STARTED) {
-                    Camera.Parameters params = mCamera.getParameters();
-                    if (applyHdr(params, old)) mCamera.setParameters(params);
-                }
-                mHdrOp.end(null);
+                Camera.Parameters params = mCamera.getParameters();
+                if (applyHdr(params, old)) mCamera.setParameters(params);
             }
         });
     }
@@ -561,19 +608,18 @@ public class Camera1Engine extends CameraEngine implements
     public void setZoom(final float zoom, @Nullable final PointF[] points, final boolean notify) {
         final float old = mZoomValue;
         mZoomValue = zoom;
-        mHandler.run(new Runnable() {
+        mZoomTask = getOrchestrator().scheduleStateful("zoom (" + zoom + ")",
+                CameraState.ENGINE,
+                new Runnable() {
             @Override
             public void run() {
-                if (getEngineState() == STATE_STARTED) {
-                    Camera.Parameters params = mCamera.getParameters();
-                    if (applyZoom(params, old)) {
-                        mCamera.setParameters(params);
-                        if (notify) {
-                            mCallback.dispatchOnZoomChanged(mZoomValue, points);
-                        }
+                Camera.Parameters params = mCamera.getParameters();
+                if (applyZoom(params, old)) {
+                    mCamera.setParameters(params);
+                    if (notify) {
+                        getCallback().dispatchOnZoomChanged(mZoomValue, points);
                     }
                 }
-                mZoomOp.end(null);
             }
         });
     }
@@ -582,7 +628,12 @@ public class Camera1Engine extends CameraEngine implements
         if (mCameraOptions.isZoomSupported()) {
             float max = params.getMaxZoom();
             params.setZoom((int) (mZoomValue * max));
-            mCamera.setParameters(params);
+            try{
+                mCamera.setParameters(params);
+            } catch (Exception e){
+                throw new CameraException(e, CameraException.REASON_CAMERA_ZOOM_NOT_SUPPORTED);
+            }
+
             return true;
         }
         mZoomValue = oldZoom;
@@ -594,20 +645,20 @@ public class Camera1Engine extends CameraEngine implements
                                       @Nullable final PointF[] points, final boolean notify) {
         final float old = mExposureCorrectionValue;
         mExposureCorrectionValue = EVvalue;
-        mHandler.run(new Runnable() {
+        mExposureCorrectionTask = getOrchestrator().scheduleStateful(
+                "exposure correction (" + EVvalue + ")",
+                CameraState.ENGINE,
+                new Runnable() {
             @Override
             public void run() {
-                if (getEngineState() == STATE_STARTED) {
-                    Camera.Parameters params = mCamera.getParameters();
-                    if (applyExposureCorrection(params, old)) {
-                        mCamera.setParameters(params);
-                        if (notify) {
-                            mCallback.dispatchOnExposureCorrectionChanged(mExposureCorrectionValue,
-                                    bounds, points);
-                        }
+                Camera.Parameters params = mCamera.getParameters();
+                if (applyExposureCorrection(params, old)) {
+                    mCamera.setParameters(params);
+                    if (notify) {
+                        getCallback().dispatchOnExposureCorrectionChanged(mExposureCorrectionValue,
+                                bounds, points);
                     }
                 }
-                mExposureCorrectionOp.end(null);
             }
         });
     }
@@ -635,13 +686,13 @@ public class Camera1Engine extends CameraEngine implements
     public void setPlaySounds(boolean playSounds) {
         final boolean old = mPlaySounds;
         mPlaySounds = playSounds;
-        mHandler.run(new Runnable() {
+        mPlaySoundsTask = getOrchestrator().scheduleStateful(
+                "play sounds (" + playSounds + ")",
+                CameraState.ENGINE,
+                new Runnable() {
             @Override
             public void run() {
-                if (getEngineState() == STATE_STARTED) {
-                    applyPlaySounds(old);
-                }
-                mPlaySoundsOp.end(null);
+                applyPlaySounds(old);
             }
         });
     }
@@ -672,14 +723,14 @@ public class Camera1Engine extends CameraEngine implements
     public void setPreviewFrameRate(float previewFrameRate) {
         final float old = previewFrameRate;
         mPreviewFrameRate = previewFrameRate;
-        mHandler.run(new Runnable() {
+        mPreviewFrameRateTask = getOrchestrator().scheduleStateful(
+                "preview fps (" + previewFrameRate + ")",
+                CameraState.ENGINE,
+                new Runnable() {
             @Override
             public void run() {
-                if (getEngineState() == STATE_STARTED) {
-                    Camera.Parameters params = mCamera.getParameters();
-                    if (applyPreviewFrameRate(params, old)) mCamera.setParameters(params);
-                }
-                mPreviewFrameRateOp.end(null);
+                Camera.Parameters params = mCamera.getParameters();
+                if (applyPreviewFrameRate(params, old)) mCamera.setParameters(params);
             }
         });
     }
@@ -687,6 +738,7 @@ public class Camera1Engine extends CameraEngine implements
     private boolean applyPreviewFrameRate(@NonNull Camera.Parameters params,
                                           float oldPreviewFrameRate) {
         List<int[]> fpsRanges = params.getSupportedPreviewFpsRange();
+        sortRanges(fpsRanges);
         if (mPreviewFrameRate == 0F) {
             // 0F is a special value. Fallback to a reasonable default.
             for (int[] fpsRange : fpsRanges) {
@@ -717,19 +769,64 @@ public class Camera1Engine extends CameraEngine implements
         return false;
     }
 
+    private void sortRanges(List<int[]> fpsRanges) {
+        if (getPreviewFrameRateExact() && mPreviewFrameRate != 0F) { // sort by range width in ascending order
+            Collections.sort(fpsRanges, new Comparator<int[]>() {
+                @Override
+                public int compare(int[] range1, int[] range2) {
+                    return (range1[1] - range1[0]) - (range2[1] - range2[0]);
+                }
+            });
+        } else { // sort by range width in descending order
+            Collections.sort(fpsRanges, new Comparator<int[]>() {
+                @Override
+                public int compare(int[] range1, int[] range2) {
+                    return (range2[1] - range2[0]) - (range1[1] - range1[0]);
+                }
+            });
+        }
+    }
+
+    @Override
+    public void setPictureFormat(@NonNull PictureFormat pictureFormat) {
+        if (pictureFormat != PictureFormat.JPEG) {
+            throw new UnsupportedOperationException("Unsupported picture format: " + pictureFormat);
+        }
+        mPictureFormat = pictureFormat;
+    }
+
     //endregion
 
     //region Frame Processing
 
     @NonNull
     @Override
-    protected FrameManager instantiateFrameManager() {
-        return new FrameManager(2, this);
+    protected FrameManager instantiateFrameManager(int poolSize) {
+        return new ByteBufferFrameManager(poolSize, this);
+    }
+
+    @NonNull
+    @Override
+    public ByteBufferFrameManager getFrameManager() {
+        return (ByteBufferFrameManager) super.getFrameManager();
+    }
+
+    @Override
+    public void setHasFrameProcessors(boolean hasFrameProcessors) {
+        // we don't care, FP is always on
+        mHasFrameProcessors = hasFrameProcessors;
+    }
+
+    @Override
+    public void setFrameProcessingFormat(int format) {
+        // Ignore input: we only support NV21.
+        mFrameProcessingFormat = ImageFormat.NV21;
     }
 
     @Override
     public void onBufferAvailable(@NonNull byte[] buffer) {
-        if (getEngineState() == STATE_STARTED) {
+        if (getState().isAtLeast(CameraState.ENGINE)
+                && getTargetState().isAtLeast(CameraState.ENGINE)) {
             mCamera.addCallbackBuffer(buffer);
         }
     }
@@ -737,14 +834,13 @@ public class Camera1Engine extends CameraEngine implements
     @Override
     public void onPreviewFrame(byte[] data, Camera camera) {
         if (data == null) {
-            // Let's test this with an exception.
-            throw new RuntimeException("Camera1 returns null data from onPreviewFrame! " +
-                    "This would make the frame processors crash later.");
+            // Seen this happen in logs.
+            return;
         }
-        Frame frame = getFrameManager().getFrame(data,
-                System.currentTimeMillis(),
-                getAngles().offset(Reference.SENSOR, Reference.OUTPUT, Axis.RELATIVE_TO_SENSOR));
-        mCallback.dispatchFrame(frame);
+        Frame frame = getFrameManager().getFrame(data, System.currentTimeMillis());
+        if (frame != null) {
+            getCallback().dispatchFrame(frame);
+        }
     }
 
     //endregion
@@ -752,48 +848,37 @@ public class Camera1Engine extends CameraEngine implements
     //region Auto Focus
 
     @Override
-    public void startAutoFocus(@Nullable final Gesture gesture, @NonNull final PointF point) {
-        // Must get width and height from the UI thread.
-        // TODO could take mPreview.surfaceSize like Camera2 does?
-        int viewWidth = 0, viewHeight = 0;
-        if (mPreview != null && mPreview.hasSurface()) {
-            viewWidth = mPreview.getView().getWidth();
-            viewHeight = mPreview.getView().getHeight();
-        }
-        final int viewWidthF = viewWidth;
-        final int viewHeightF = viewHeight;
-        mHandler.run(new Runnable() {
+    public void startAutoFocus(@Nullable final Gesture gesture,
+                               @NonNull final MeteringRegions regions,
+                               @NonNull final PointF legacyPoint) {
+        getOrchestrator().scheduleStateful("auto focus", CameraState.BIND, new Runnable() {
             @Override
             public void run() {
-                if (getEngineState() < STATE_STARTED) return;
                 if (!mCameraOptions.isAutoFocusSupported()) return;
-                final PointF p = new PointF(point.x, point.y); // copy.
-                int offset = getAngles().offset(Reference.SENSOR, Reference.VIEW, Axis.ABSOLUTE);
-                List<Camera.Area> meteringAreas2 = computeMeteringAreas(p.x, p.y,
-                        viewWidthF, viewHeightF, offset);
-                List<Camera.Area> meteringAreas1 = meteringAreas2.subList(0, 1);
+                MeteringTransform<Camera.Area> transform = new Camera1MeteringTransform(
+                        getAngles(),
+                        getPreview().getSurfaceSize());
+                MeteringRegions transformed = regions.transform(transform);
 
-                // At this point we are sure that camera supports auto focus... right?
-                // Look at CameraView.onTouchEvent().
                 Camera.Parameters params = mCamera.getParameters();
                 int maxAF = params.getMaxNumFocusAreas();
                 int maxAE = params.getMaxNumMeteringAreas();
-                if (maxAF > 0) params.setFocusAreas(maxAF > 1 ? meteringAreas2 : meteringAreas1);
-                if (maxAE > 0) params.setMeteringAreas(maxAE > 1 ? meteringAreas2 : meteringAreas1);
+                if (maxAF > 0) params.setFocusAreas(transformed.get(maxAF, transform));
+                if (maxAE > 0) params.setMeteringAreas(transformed.get(maxAE, transform));
                 params.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
                 mCamera.setParameters(params);
-                mCallback.dispatchOnFocusStart(gesture, p);
+                getCallback().dispatchOnFocusStart(gesture, legacyPoint);
 
                 // The auto focus callback is not guaranteed to be called, but we really want it
                 // to be. So we remove the old runnable if still present and post a new one.
-                if (mFocusEndRunnable != null) mHandler.remove(mFocusEndRunnable);
-                mFocusEndRunnable = new Runnable() {
+                getOrchestrator().remove(JOB_FOCUS_END);
+                getOrchestrator().scheduleDelayed(JOB_FOCUS_END, AUTOFOCUS_END_DELAY_MILLIS,
+                        new Runnable() {
                     @Override
                     public void run() {
-                        mCallback.dispatchOnFocusEnd(gesture, false, p);
+                        getCallback().dispatchOnFocusEnd(gesture, false, legacyPoint);
                     }
-                };
-                mHandler.post(AUTOFOCUS_END_DELAY_MILLIS, mFocusEndRunnable);
+                });
 
                 // Wrapping autoFocus in a try catch to handle some device specific exceptions,
                 // see See https://github.com/natario1/CameraView/issues/181.
@@ -801,14 +886,27 @@ public class Camera1Engine extends CameraEngine implements
                     mCamera.autoFocus(new Camera.AutoFocusCallback() {
                         @Override
                         public void onAutoFocus(boolean success, Camera camera) {
-                            if (mFocusEndRunnable != null) {
-                                mHandler.remove(mFocusEndRunnable);
-                                mFocusEndRunnable = null;
-                            }
-                            mCallback.dispatchOnFocusEnd(gesture, success, p);
-                            mHandler.remove(mFocusResetRunnable);
+                            getOrchestrator().remove(JOB_FOCUS_END);
+                            getOrchestrator().remove(JOB_FOCUS_RESET);
+                            getCallback().dispatchOnFocusEnd(gesture, success, legacyPoint);
                             if (shouldResetAutoFocus()) {
-                                mHandler.post(getAutoFocusResetDelay(), mFocusResetRunnable);
+                                getOrchestrator().scheduleStatefulDelayed(
+                                        JOB_FOCUS_RESET,
+                                        CameraState.ENGINE,
+                                        getAutoFocusResetDelay(),
+                                        new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        mCamera.cancelAutoFocus();
+                                        Camera.Parameters params = mCamera.getParameters();
+                                        int maxAF = params.getMaxNumFocusAreas();
+                                        int maxAE = params.getMaxNumMeteringAreas();
+                                        if (maxAF > 0) params.setFocusAreas(null);
+                                        if (maxAE > 0) params.setMeteringAreas(null);
+                                        applyDefaultFocus(params); // Revert to internal focus.
+                                        mCamera.setParameters(params);
+                                    }
+                                });
                             }
                         }
                     });
@@ -817,71 +915,9 @@ public class Camera1Engine extends CameraEngine implements
                     // Let the mFocusEndRunnable do its job. (could remove it and quickly dispatch
                     // onFocusEnd here, but let's make it simpler).
                 }
-
             }
         });
     }
-
-    @NonNull
-    @EngineThread
-    private static List<Camera.Area> computeMeteringAreas(double viewClickX, double viewClickY,
-                                                          int viewWidth, int viewHeight,
-                                                          int sensorToDisplay) {
-        // Event came in view coordinates. We must rotate to sensor coordinates.
-        // First, rescale to the -1000 ... 1000 range.
-        int displayToSensor = -sensorToDisplay;
-        viewClickX = -1000d + (viewClickX / (double) viewWidth) * 2000d;
-        viewClickY = -1000d + (viewClickY / (double) viewHeight) * 2000d;
-
-        // Apply rotation to this point.
-        // https://academo.org/demos/rotation-about-point/
-        double theta = ((double) displayToSensor) * Math.PI / 180;
-        double sensorClickX = viewClickX * Math.cos(theta) - viewClickY * Math.sin(theta);
-        double sensorClickY = viewClickX * Math.sin(theta) + viewClickY * Math.cos(theta);
-        LOG.i("focus:", "viewClickX:", viewClickX, "viewClickY:", viewClickY);
-        LOG.i("focus:", "sensorClickX:", sensorClickX, "sensorClickY:", sensorClickY);
-
-        // Compute the rect bounds.
-        Rect rect1 = computeMeteringArea(sensorClickX, sensorClickY, 150d);
-        int weight1 = 1000; // 150 * 150 * 1000 = more than 10.000.000
-        Rect rect2 = computeMeteringArea(sensorClickX, sensorClickY, 300d);
-        int weight2 = 100; // 300 * 300 * 100 = 9.000.000
-
-        List<Camera.Area> list = new ArrayList<>(2);
-        list.add(new Camera.Area(rect1, weight1));
-        list.add(new Camera.Area(rect2, weight2));
-        return list;
-    }
-
-    @NonNull
-    private static Rect computeMeteringArea(double centerX, double centerY, double size) {
-        double delta = size / 2d;
-        int top = (int) Math.max(centerY - delta, -1000);
-        int bottom = (int) Math.min(centerY + delta, 1000);
-        int left = (int) Math.max(centerX - delta, -1000);
-        int right = (int) Math.min(centerX + delta, 1000);
-        LOG.i("focus:", "computeMeteringArea:",
-                "top:", top,
-                "left:", left,
-                "bottom:", bottom,
-                "right:", right);
-        return new Rect(left, top, right, bottom);
-    }
-
-    private final Runnable mFocusResetRunnable = new Runnable() {
-        @Override
-        public void run() {
-            if (getEngineState() < STATE_STARTED) return;
-            mCamera.cancelAutoFocus();
-            Camera.Parameters params = mCamera.getParameters();
-            int maxAF = params.getMaxNumFocusAreas();
-            int maxAE = params.getMaxNumMeteringAreas();
-            if (maxAF > 0) params.setFocusAreas(null);
-            if (maxAE > 0) params.setMeteringAreas(null);
-            applyDefaultFocus(params); // Revert to internal focus.
-            mCamera.setParameters(params);
-        }
-    };
 
     //endregion
 }

@@ -10,7 +10,6 @@ import android.os.Build;
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 
-import com.otaliastudios.cameraview.CameraLogger;
 import com.otaliastudios.cameraview.PictureResult;
 import com.otaliastudios.cameraview.engine.Camera2Engine;
 import com.otaliastudios.cameraview.engine.action.Action;
@@ -44,11 +43,9 @@ import com.otaliastudios.cameraview.size.AspectRatio;
 @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
 public class Snapshot2PictureRecorder extends SnapshotGlPictureRecorder {
 
-    private final static String TAG = Snapshot2PictureRecorder.class.getSimpleName();
-    private final static CameraLogger LOG = CameraLogger.create(TAG);
     private final static long LOCK_TIMEOUT = 2500;
 
-    private static class FlashAction extends BaseAction {
+    private class FlashAction extends BaseAction {
 
         @Override
         protected void onStart(@NonNull ActionHolder holder) {
@@ -79,6 +76,26 @@ public class Snapshot2PictureRecorder extends SnapshotGlPictureRecorder {
                 LOG.i("FlashAction:", "Waiting flash but flashState is",
                         flashState, ". Waiting...");
             }
+        }
+    }
+
+    private class ResetFlashAction extends BaseAction {
+
+        @Override
+        protected void onStart(@NonNull ActionHolder holder) {
+            super.onStart(holder);
+            try {
+                // See Camera2Engine.setFlash() comments: turning TORCH off has bugs and we must do
+                // as follows.
+                LOG.i("ResetFlashAction:", "Reverting the flash changes.");
+                CaptureRequest.Builder builder = holder.getBuilder(this);
+                builder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON);
+                builder.set(CaptureRequest.FLASH_MODE, CaptureResult.FLASH_MODE_OFF);
+                holder.applyBuilder(this, builder);
+                builder.set(CaptureRequest.CONTROL_AE_MODE, mOriginalAeMode);
+                builder.set(CaptureRequest.FLASH_MODE, mOriginalFlashMode);
+                holder.applyBuilder(this);
+            } catch (CameraAccessException ignore) {}
         }
     }
 
@@ -135,18 +152,7 @@ public class Snapshot2PictureRecorder extends SnapshotGlPictureRecorder {
     @Override
     protected void dispatchResult() {
         // Revert our changes.
-        LOG.i("dispatchResult:", "Reverting the flash changes.");
-        try {
-            // See Camera2Engine.setFlash() comments: turning TORCH off has bugs and we must do
-            // as follows.
-            CaptureRequest.Builder builder = mHolder.getBuilder(mAction);
-            builder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON);
-            builder.set(CaptureRequest.FLASH_MODE, CaptureResult.FLASH_MODE_OFF);
-            mHolder.applyBuilder(mAction, builder);
-            builder.set(CaptureRequest.CONTROL_AE_MODE, mOriginalAeMode);
-            builder.set(CaptureRequest.FLASH_MODE, mOriginalFlashMode);
-            mHolder.applyBuilder(mAction);
-        } catch (CameraAccessException ignore) {}
+        new ResetFlashAction().start(mHolder);
         super.dispatchResult();
     }
 }

@@ -15,7 +15,6 @@ import android.media.MediaActionSound;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
-import android.preference.PreferenceManager;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -30,6 +29,7 @@ import com.otaliastudios.cameraview.controls.Flash;
 import com.otaliastudios.cameraview.controls.Grid;
 import com.otaliastudios.cameraview.controls.Hdr;
 import com.otaliastudios.cameraview.controls.Mode;
+import com.otaliastudios.cameraview.controls.PictureFormat;
 import com.otaliastudios.cameraview.controls.Preview;
 import com.otaliastudios.cameraview.controls.VideoCodec;
 import com.otaliastudios.cameraview.controls.WhiteBalance;
@@ -37,13 +37,15 @@ import com.otaliastudios.cameraview.engine.Camera1Engine;
 import com.otaliastudios.cameraview.engine.Camera2Engine;
 import com.otaliastudios.cameraview.engine.CameraEngine;
 import com.otaliastudios.cameraview.engine.offset.Reference;
+import com.otaliastudios.cameraview.engine.orchestrator.CameraState;
+import com.otaliastudios.cameraview.filter.Filter;
 import com.otaliastudios.cameraview.filter.FilterParser;
 import com.otaliastudios.cameraview.frame.Frame;
 import com.otaliastudios.cameraview.frame.FrameProcessor;
 import com.otaliastudios.cameraview.gesture.Gesture;
+import com.otaliastudios.cameraview.gesture.GestureAction;
 import com.otaliastudios.cameraview.gesture.GestureFinder;
-import com.otaliastudios.cameraview.internal.utils.OrientationHelper;
-import com.otaliastudios.cameraview.internal.utils.WorkerHandler;
+import com.otaliastudios.cameraview.internal.OrientationHelper;
 import com.otaliastudios.cameraview.overlay.OverlayLayout;
 import com.otaliastudios.cameraview.size.Size;
 import com.otaliastudios.cameraview.size.SizeSelector;
@@ -51,9 +53,19 @@ import com.otaliastudios.cameraview.size.SizeSelectorParser;
 import com.otaliastudios.cameraview.size.SizeSelectors;
 
 import java.io.File;
+import java.io.FileDescriptor;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static android.content.Context.MODE_PRIVATE;
 
 /**
  * Entry point for the whole library.
@@ -72,16 +84,27 @@ public class CameraView {
     final static boolean DEFAULT_USE_DEVICE_ORIENTATION = true;
     final static boolean DEFAULT_PICTURE_METERING = true;
     final static boolean DEFAULT_PICTURE_SNAPSHOT_METERING = false;
+    final static boolean DEFAULT_REQUEST_PERMISSIONS = true;
+    final static int DEFAULT_FRAME_PROCESSING_POOL_SIZE = 2;
+    final static int DEFAULT_FRAME_PROCESSING_EXECUTORS = 1;
 
     // Self managed parameters
     private boolean mPlaySounds;
     private boolean mUseDeviceOrientation;
+    private boolean mRequestPermissions;
+    private HashMap<Gesture, GestureAction> mGestureMap = new HashMap<>(4);
+    private Preview mPreview;
     private Engine mEngine;
+    private Filter mPendingFilter;
+    private int mFrameProcessingExecutors;
 
     // Components
+    private Handler mUiHandler;
+    private Executor mFrameProcessingExecutor;
     @VisibleForTesting CameraCallbacks mCameraCallbacks;
     private OrientationHelper mOrientationHelper;
     private CameraEngine mCameraEngine;
+    private Size mLastPreviewStreamSize;
     private MediaActionSound mSound;
     @VisibleForTesting List<CameraListener> mListeners = new CopyOnWriteArrayList<>();
     @VisibleForTesting List<FrameProcessor> mFrameProcessors = new CopyOnWriteArrayList<>();
@@ -91,10 +114,11 @@ public class CameraView {
     private SharedPreferences preference;
 
     // Threading
-    private Handler mUiHandler;
-    private WorkerHandler mFrameProcessorsHandler;
+    //private WorkerHandler mFrameProcessorsHandler;
     private Context context;
     private CameraViewParent cameraViewParent;
+    private ControlParser controlParser;
+    private SizeSelectorParser sizeSelectors;
     @VisibleForTesting OverlayLayout mOverlayLayout;
 
     public static final String KEY_CAMERA_PLAY_SOUND = "CameraView_cameraPlaySounds";
@@ -109,12 +133,25 @@ public class CameraView {
     public static final String KEY_CAMERA_PICTURE_METERING = "CameraView_cameraPictureMetering";
     public static final String KEY_CAMERA_SNAPSHOT_METERING = "CameraView_cameraPictureSnapshotMetering";
     public static final String KEY_PREVIEW_FRAME_RATE = "CameraView_cameraPreviewFrameRate";
+    public static final String KEY_PREVIEW_FRAME_RATE_EXACT = "cameraPreviewFrameRateExact";
+    public static final String KEY_CAMERA_REQUEST_PERMISSIONS = "CameraView_cameraRequestPermissions";
+    public static final String KEY_CAMERA_SNAPSHOT_MAX_WIDTH = "CameraView_cameraSnapshotMaxWidth";
+    public static final String KEY_CAMERA_SNAPSHOT_MAX_HEIGHT = "CameraView_cameraSnapshotMaxHeight";
+    public static final String KEY_CAMERA_FRAME_PROCESSING_MAX_WIDTH = "CameraView_cameraFrameProcessingMaxWidth";
+    public static final String KEY_CAMERA_FRAME_PROCESSING_MAX_HEIGHT = "CameraView_cameraFrameProcessingMaxHeight";
+    public static final String KEY_CAMERA_FRAME_PROCESSING_FORMAT = "CameraView_cameraFrameProcessingFormat";
+    public static final String KEY_CAMERA_FRAME_PROCESSING_POOL_SIZE = "CameraView_cameraFrameProcessingPoolSize";
+    public static final String KEY_CAMERA_FRAME_PROCESSING_EXECUTORS = "CameraView_cameraFrameProcessingExecutors";
 
 
     public CameraView(@NonNull Context context) {
         //super(context, null);
         this.context = context;
         initialize(context);
+    }
+
+    public ControlParser getControlParser(){
+        return controlParser;
     }
 
 //    public CameraView(@NonNull Context context, @Nullable AttributeSet attrs) {
@@ -128,15 +165,16 @@ public class CameraView {
     private void initialize(@NonNull Context context) {
         //setWillNotDraw(false);
         //TypedArray a = context.getTheme().obtainStyledAttributes(attrs, R.styleable.CameraView, 0, 0);
-        preference = PreferenceManager.getDefaultSharedPreferences(context);
-        ControlParser controls = new ControlParser(context);
+        preference = context.getSharedPreferences("camera_view", MODE_PRIVATE);
+        controlParser = new ControlParser(context, preference);
 
         // Self managed
         boolean playSounds = preference.getBoolean(KEY_CAMERA_PLAY_SOUND, DEFAULT_PLAY_SOUNDS);
         boolean useDeviceOrientation = preference.getBoolean(KEY_CAMERA_DEVICE_ORIENTATION, DEFAULT_USE_DEVICE_ORIENTATION);
-        mExperimental = preference.getBoolean(KEY_CAMERA_EXPERIMENTAL, false);
+        mExperimental = preference.getBoolean(KEY_CAMERA_EXPERIMENTAL, true);
         //mPreview = controls.getPreview();
-        mEngine = controls.getEngine();
+        mEngine = controlParser.getEngine();
+        mRequestPermissions = preference.getBoolean(KEY_CAMERA_REQUEST_PERMISSIONS, DEFAULT_REQUEST_PERMISSIONS);
 
         // Camera engine params
         //int gridColor = a.getColor(R.styleable.CameraView_cameraGridColor, GridLinesLayout.DEFAULT_COLOR);
@@ -149,10 +187,15 @@ public class CameraView {
         boolean pictureMetering = preference.getBoolean(KEY_CAMERA_PICTURE_METERING, DEFAULT_PICTURE_METERING);
         boolean pictureSnapshotMetering = preference.getBoolean(KEY_CAMERA_SNAPSHOT_METERING, DEFAULT_PICTURE_SNAPSHOT_METERING);
         float videoFrameRate = (float) preference.getInt(KEY_PREVIEW_FRAME_RATE, 0);
-        //float videoFrameRate = a.getFloat(R.styleable.CameraView_cameraPreviewFrameRate, 0);
+        boolean videoFrameRateExact = preference.getBoolean(KEY_PREVIEW_FRAME_RATE_EXACT, false);
+        int snapshotMaxWidth = preference.getInt(KEY_CAMERA_SNAPSHOT_MAX_WIDTH, 0);
+        int snapshotMaxHeight = preference.getInt(KEY_CAMERA_SNAPSHOT_MAX_HEIGHT, 0);
+        int frameMaxWidth = preference.getInt(KEY_CAMERA_FRAME_PROCESSING_MAX_WIDTH, 0);
+        int frameMaxHeight = preference.getInt(KEY_CAMERA_FRAME_PROCESSING_MAX_HEIGHT, 0);
+        int frameFormat = preference.getInt(KEY_CAMERA_FRAME_PROCESSING_FORMAT, 0);
+        int framePoolSize = preference.getInt(KEY_CAMERA_FRAME_PROCESSING_POOL_SIZE, DEFAULT_FRAME_PROCESSING_POOL_SIZE);
+        int frameExecutors = preference.getInt(KEY_CAMERA_FRAME_PROCESSING_EXECUTORS, DEFAULT_FRAME_PROCESSING_EXECUTORS);
 
-        // Size selectors and gestures
-        SizeSelectorParser sizeSelectors = new SizeSelectorParser(preference);
         FilterParser filters = new FilterParser(preference);
 
         //a.recycle();
@@ -160,10 +203,13 @@ public class CameraView {
         // Components
         mCameraCallbacks = new CameraCallbacks();
         mUiHandler = new Handler(Looper.getMainLooper());
-        mFrameProcessorsHandler = WorkerHandler.get("FrameProcessorsWorker");
 
         // Create the engine
         doInstantiateEngine();
+
+        // Size selectors and gestures
+        mCameraEngine.collectCameraInfo(controlParser.getFacing());
+        sizeSelectors = new SizeSelectorParser(preference, mCameraEngine.getCameraId(), mEngine);
 
         // Apply self managed
         setPlaySounds(playSounds);
@@ -171,23 +217,32 @@ public class CameraView {
 
         // Apply camera engine params
         // Adding new ones? See setEngine().
-        setFacing(controls.getFacing());
-        setFlash(controls.getFlash());
-        setMode(controls.getMode());
-        setWhiteBalance(controls.getWhiteBalance());
-        setHdr(controls.getHdr());
-        setAudio(controls.getAudio());
+        setFacing(controlParser.getFacing());
+        setFlash(controlParser.getFlash());
+        setMode(controlParser.getMode());
+        setWhiteBalance(controlParser.getWhiteBalance());
+        setHdr(controlParser.getHdr());
+        setAudio(controlParser.getAudio());
         setAudioBitRate(audioBitRate);
         setPictureSize(sizeSelectors.getPictureSizeSelector());
         setPictureMetering(pictureMetering);
         setPictureSnapshotMetering(pictureSnapshotMetering);
+        setPictureFormat(controlParser.getPictureFormat());
         setVideoSize(sizeSelectors.getVideoSizeSelector());
-        setVideoCodec(controls.getVideoCodec());
+        setVideoCodec(controlParser.getVideoCodec());
         setVideoMaxSize(videoMaxSize);
         setVideoMaxDuration(videoMaxDuration);
         setVideoBitRate(videoBitRate);
         setAutoFocusResetDelay(autoFocusResetDelay);
+        setPreviewFrameRateExact(videoFrameRateExact);
         setPreviewFrameRate(videoFrameRate);
+        setSnapshotMaxWidth(snapshotMaxWidth);
+        setSnapshotMaxHeight(snapshotMaxHeight);
+        setFrameProcessingMaxWidth(frameMaxWidth);
+        setFrameProcessingMaxHeight(frameMaxHeight);
+        setFrameProcessingFormat(frameFormat);
+        setFrameProcessingPoolSize(framePoolSize);
+        setFrameProcessingExecutors(frameExecutors);
 
         // Apply filters
         //setFilter(filters.getFilter());
@@ -202,6 +257,10 @@ public class CameraView {
 
     public CameraCallbacks getCameraCallbacks(){
         return mCameraCallbacks;
+    }
+
+    public SizeSelectorParser getSizeSelectorParser(){
+        return sizeSelectors;
     }
 
     /**
@@ -255,24 +314,31 @@ public class CameraView {
     //@Override
     protected void onDetachedFromWindow() {
         //if (!mInEditor)
-        mOrientationHelper.disable();
+            mOrientationHelper.disable();
+        mLastPreviewStreamSize = null;
         //super.onDetachedFromWindow();
     }
 
     //endregion
 
+
+
+
+
     //region Lifecycle APIs
 
     /**
-     * Returns whether the camera has started showing its preview.
+     * Returns whether the camera engine has started.
      * @return whether the camera has started
      */
     public boolean isOpened() {
-        return mCameraEngine.getEngineState() >= CameraEngine.STATE_STARTED;
+        return mCameraEngine.getState().isAtLeast(CameraState.ENGINE)
+                && mCameraEngine.getTargetState().isAtLeast(CameraState.ENGINE);
     }
 
     private boolean isClosed() {
-        return mCameraEngine.getEngineState() == CameraEngine.STATE_STOPPED;
+        return mCameraEngine.getState() == CameraState.OFF
+                && !mCameraEngine.isChangingState();
     }
 
     /**
@@ -313,11 +379,14 @@ public class CameraView {
         needsAudio = needsAudio && c.checkSelfPermission(Manifest.permission.RECORD_AUDIO)
                 != PackageManager.PERMISSION_GRANTED;
 
-        if (needsCamera || needsAudio) {
+        if (!needsCamera && !needsAudio) {
+            return true;
+        } else if (mRequestPermissions) {
             requestPermissions(needsCamera, needsAudio);
             return false;
+        } else {
+            return false;
         }
-        return true;
     }
 
     /**
@@ -351,7 +420,7 @@ public class CameraView {
     //@OnLifecycleEvent(Lifecycle.Event.ON_PAUSE)
     public void close() {
         //if (mInEditor) return;
-        mCameraEngine.stop();
+        mCameraEngine.stop(false);
         //if (mCameraPreview != null) mCameraPreview.onPause();
     }
 
@@ -364,8 +433,11 @@ public class CameraView {
         //if (mInEditor) return;
         clearCameraListeners();
         clearFrameProcessors();
-        mCameraEngine.destroy();
+        mCameraEngine.destroy(true);
         //if (mCameraPreview != null) mCameraPreview.onDestroy();
+        if(cameraViewParent != null){
+            cameraViewParent.destroy();
+        }
     }
 
     //endregion
@@ -408,6 +480,8 @@ public class CameraView {
             //setPreview((Preview) control);
         } else if (control instanceof Engine) {
             setEngine((Engine) control);
+        } else if (control instanceof PictureFormat) {
+            setPictureFormat((PictureFormat) control);
         }
     }
 
@@ -442,6 +516,8 @@ public class CameraView {
             return (T) null;//getPreview();
         } else if (controlClass == Engine.class) {
             return (T) getEngine();
+        } else if (controlClass == PictureFormat.class) {
+            return (T) getPictureFormat();
         } else {
             throw new IllegalArgumentException("Unknown control class: " + controlClass);
         }
@@ -473,6 +549,7 @@ public class CameraView {
         setAudio(oldEngine.getAudio());
         setAudioBitRate(oldEngine.getAudioBitRate());
         setPictureSize(oldEngine.getPictureSizeSelector());
+        setPictureFormat(oldEngine.getPictureFormat());
         setVideoSize(oldEngine.getVideoSizeSelector());
         setVideoCodec(oldEngine.getVideoCodec());
         setVideoMaxSize(oldEngine.getVideoMaxSize());
@@ -480,6 +557,14 @@ public class CameraView {
         setVideoBitRate(oldEngine.getVideoBitRate());
         setAutoFocusResetDelay(oldEngine.getAutoFocusResetDelay());
         setPreviewFrameRate(oldEngine.getPreviewFrameRate());
+        setPreviewFrameRateExact(oldEngine.getPreviewFrameRateExact());
+        setSnapshotMaxWidth(oldEngine.getSnapshotMaxWidth());
+        setSnapshotMaxHeight(oldEngine.getSnapshotMaxHeight());
+        setFrameProcessingMaxWidth(oldEngine.getFrameProcessingMaxWidth());
+        setFrameProcessingMaxHeight(oldEngine.getFrameProcessingMaxHeight());
+        setFrameProcessingFormat(0 /* this is very engine specific, so do not pass */);
+        setFrameProcessingPoolSize(oldEngine.getFrameProcessingPoolSize());
+        mCameraEngine.setHasFrameProcessors(!mFrameProcessors.isEmpty());
     }
 
     /**
@@ -765,7 +850,6 @@ public class CameraView {
     @SuppressWarnings("unused")
     public long getAutoFocusResetDelay() { return mCameraEngine.getAutoFocusResetDelay(); }
 
-
     /**
      * <strong>ADVANCED FEATURE</strong> - sets a size selector for the preview stream.
      * The {@link SizeSelector} will be invoked with the list of available sizes, and the first
@@ -877,6 +961,29 @@ public class CameraView {
     }
 
     /**
+     * Sets the format for pictures taken with {@link #takePicture()}. This format does not apply
+     * to picture snapshots taken with {@link #takePictureSnapshot()}.
+     * The {@link PictureFormat#JPEG} is always supported - for other values, please check
+     * the {@link CameraOptions#getSupportedPictureFormats()} value.
+     *
+     * @param pictureFormat new format
+     */
+    public void setPictureFormat(@NonNull PictureFormat pictureFormat) {
+        mCameraEngine.setPictureFormat(pictureFormat);
+    }
+
+    /**
+     * Returns the current picture format.
+     * @see #setPictureFormat(PictureFormat)
+     * @return the picture format
+     */
+    @NonNull
+    public PictureFormat getPictureFormat() {
+        return mCameraEngine.getPictureFormat();
+    }
+
+
+    /**
      * Sets a capture size selector for video mode.
      * The {@link SizeSelector} will be invoked with the list of available sizes, and the first
      * acceptable size will be accepted and passed to the internal engine.
@@ -905,6 +1012,38 @@ public class CameraView {
     @SuppressWarnings("unused")
     public int getVideoBitRate() {
         return mCameraEngine.getVideoBitRate();
+    }
+
+    /**
+     * A flag to control the behavior when calling {@link #setPreviewFrameRate(float)}.
+     *
+     * If the value is set to true, {@link #setPreviewFrameRate(float)} will choose the preview
+     * frame range as close to the desired new frame rate as possible. Which mean it may choose a
+     * narrow range around the desired frame rate. Note: This option will give you as exact fps as
+     * you want but the sensor will have less freedom when adapting the exposure to the environment,
+     * which may lead to dark preview.
+     *
+     * If the value is set to false, {@link #setPreviewFrameRate(float)} will choose as broad range
+     * as it can.
+     *
+     * @param videoFrameRateExact whether want a more exact preview frame range
+     *
+     * @see #setPreviewFrameRate(float)
+     */
+    public void setPreviewFrameRateExact(boolean videoFrameRateExact) {
+        mCameraEngine.setPreviewFrameRateExact(videoFrameRateExact);
+    }
+
+    /**
+     * Returns whether we want to set preview fps as exact as we set through
+     * {@link #setPreviewFrameRate(float)}.
+     *
+     * @see #setPreviewFrameRateExact(boolean)
+     * @see #setPreviewFrameRate(float)
+     * @return current option
+     */
+    public boolean getPreviewFrameRateExact() {
+        return mCameraEngine.getPreviewFrameRateExact();
     }
 
     /**
@@ -978,47 +1117,6 @@ public class CameraView {
     }
 
     /**
-     * Adds a {@link FrameProcessor} instance to be notified of
-     * new frames in the preview stream.
-     *
-     * @param processor a frame processor.
-     */
-    public void addFrameProcessor(@Nullable FrameProcessor processor) {
-        if (processor != null) {
-            mFrameProcessors.add(processor);
-            if (mFrameProcessors.size() == 1) {
-                mCameraEngine.setHasFrameProcessors(true);
-            }
-        }
-    }
-
-    /**
-     * Remove a {@link FrameProcessor} that was previously registered.
-     *
-     * @param processor a frame processor
-     */
-    public void removeFrameProcessor(@Nullable FrameProcessor processor) {
-        if (processor != null) {
-            mFrameProcessors.remove(processor);
-            if (mFrameProcessors.size() == 0) {
-                mCameraEngine.setHasFrameProcessors(false);
-            }
-        }
-    }
-
-    /**
-     * Clears the list of {@link FrameProcessor} that have been registered
-     * to preview frames.
-     */
-    public void clearFrameProcessors() {
-        boolean had = mFrameProcessors.size() > 0;
-        mFrameProcessors.clear();
-        if (had) {
-            mCameraEngine.setHasFrameProcessors(false);
-        }
-    }
-
-    /**
      * Asks the camera to capture an image of the current scene.
      * This will trigger {@link CameraListener#onPictureTaken(PictureResult)} if a listener
      * was registered.
@@ -1052,8 +1150,28 @@ public class CameraView {
      * @param file a file where the video will be saved
      */
     public void takeVideo(@NonNull File file) {
+        takeVideo(file, null);
+    }
+
+    /**
+     * Starts recording a video. Video will be written to the given file,
+     * so callers should ensure they have appropriate permissions to write to the file.
+     *
+     * @param fileDescriptor a file descriptor where the video will be saved
+     */
+    public void takeVideo(@NonNull FileDescriptor fileDescriptor) {
+        takeVideo(null, fileDescriptor);
+    }
+
+    private void takeVideo(@Nullable File file, @Nullable FileDescriptor fileDescriptor) {
         VideoResult.Stub stub = new VideoResult.Stub();
-        mCameraEngine.takeVideo(stub, file);
+        if (file != null) {
+            mCameraEngine.takeVideo(stub, file, null);
+        } else if (fileDescriptor != null) {
+            mCameraEngine.takeVideo(stub, null, fileDescriptor);
+        } else {
+            throw new IllegalStateException("file and fileDescriptor are both null.");
+        }
 //        mUiHandler.post(new Runnable() {
 //            @Override
 //            public void run() {
@@ -1092,9 +1210,26 @@ public class CameraView {
      *
      * @param file a file where the video will be saved
      * @param durationMillis recording max duration
-     *
      */
     public void takeVideo(@NonNull File file, int durationMillis) {
+        takeVideo(file, null, durationMillis);
+    }
+
+    /**
+     * Starts recording a video. Video will be written to the given file,
+     * so callers should ensure they have appropriate permissions to write to the file.
+     * Recording will be automatically stopped after the given duration, overriding
+     * temporarily any duration limit set by {@link #setVideoMaxDuration(int)}.
+     *
+     * @param fileDescriptor a file descriptor where the video will be saved
+     * @param durationMillis recording max duration
+     */
+    public void takeVideo(@NonNull FileDescriptor fileDescriptor, int durationMillis) {
+        takeVideo(null, fileDescriptor, durationMillis);
+    }
+
+    private void takeVideo(@Nullable File file, @Nullable FileDescriptor fileDescriptor,
+                           int durationMillis) {
         final int old = getVideoMaxDuration();
         addCameraListener(new CameraListener() {
             @Override
@@ -1113,7 +1248,7 @@ public class CameraView {
             }
         });
         setVideoMaxDuration(durationMillis);
-        takeVideo(file);
+        takeVideo(file, fileDescriptor);
     }
 
     /**
@@ -1187,6 +1322,24 @@ public class CameraView {
      */
     public void setSnapshotMaxHeight(int maxHeight) {
         mCameraEngine.setSnapshotMaxHeight(maxHeight);
+    }
+
+    /**
+     * The max width for snapshots.
+     * @see #setSnapshotMaxWidth(int)
+     * @return max width
+     */
+    public int getSnapshotMaxWidth() {
+        return mCameraEngine.getSnapshotMaxWidth();
+    }
+
+    /**
+     * The max height for snapshots.
+     * @see #setSnapshotMaxHeight(int)
+     * @return max height
+     */
+    public int getSnapshotMaxHeight() {
+        return mCameraEngine.getSnapshotMaxHeight();
     }
 
     /**
@@ -1416,7 +1569,8 @@ public class CameraView {
             OrientationHelper.Callback,
             GestureFinder.Controller {
 
-        private CameraLogger mLogger = CameraLogger.create(CameraCallbacks.class.getSimpleName());
+        private final String TAG = CameraCallbacks.class.getSimpleName();
+        private final CameraLogger LOG = CameraLogger.create(TAG);
 
         @NonNull
         @Override
@@ -1435,8 +1589,8 @@ public class CameraView {
         }
 
         @Override
-        public void dispatchOnCameraOpened(final CameraOptions options) {
-            mLogger.i("dispatchOnCameraOpened", options);
+        public void dispatchOnCameraOpened(@NonNull final CameraOptions options) {
+            LOG.i("dispatchOnCameraOpened", options);
             mUiHandler.post(new Runnable() {
                 @Override
                 public void run() {
@@ -1448,8 +1602,21 @@ public class CameraView {
         }
 
         @Override
+        public void dispatchOnCameraBinded() {
+            LOG.i("dispatchOnCameraBinded");
+            mUiHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    for (CameraListener listener : mListeners) {
+                        listener.onCameraBinded();
+                    }
+                }
+            });
+        }
+
+        @Override
         public void dispatchOnCameraClosed() {
-            mLogger.i("dispatchOnCameraClosed");
+            LOG.i("dispatchOnCameraClosed");
             mUiHandler.post(new Runnable() {
                 @Override
                 public void run() {
@@ -1462,17 +1629,27 @@ public class CameraView {
 
         @Override
         public void onCameraPreviewStreamSizeChanged() {
-            mLogger.i("onCameraPreviewStreamSizeChanged");
             // Camera preview size has changed.
             // Request a layout pass for onMeasure() to do its stuff.
             // Potentially this will change CameraView size, which changes Surface size,
             // which triggers a new Preview size. But hopefully it will converge.
-            mUiHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    //requestLayout();
-                }
-            });
+            Size previewSize = mCameraEngine.getPreviewStreamSize(Reference.VIEW);
+            if (previewSize == null) {
+                throw new RuntimeException("Preview stream size should not be null here.");
+            } else if (previewSize.equals(mLastPreviewStreamSize)) {
+                LOG.i("onCameraPreviewStreamSizeChanged:",
+                        "swallowing because the preview size has not changed.", previewSize);
+            } else {
+                LOG.i("onCameraPreviewStreamSizeChanged: posting a requestLayout call.",
+                        "Preview stream size:", previewSize);
+                mUiHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        if(cameraViewParent != null)
+                            cameraViewParent.requestLayout();
+                    }
+                });
+            }
         }
 
         @Override
@@ -1483,8 +1660,8 @@ public class CameraView {
         }
 
         @Override
-        public void dispatchOnPictureTaken(final PictureResult.Stub stub) {
-            mLogger.i("dispatchOnPictureTaken", stub);
+        public void dispatchOnPictureTaken(@NonNull final PictureResult.Stub stub) {
+            LOG.i("dispatchOnPictureTaken", stub);
             mUiHandler.post(new Runnable() {
                 @Override
                 public void run() {
@@ -1497,8 +1674,8 @@ public class CameraView {
         }
 
         @Override
-        public void dispatchOnVideoTaken(final VideoResult.Stub stub) {
-            mLogger.i("dispatchOnVideoTaken", stub);
+        public void dispatchOnVideoTaken(@NonNull final VideoResult.Stub stub) {
+            LOG.i("dispatchOnVideoTaken", stub);
             mUiHandler.post(new Runnable() {
                 @Override
                 public void run() {
@@ -1513,7 +1690,7 @@ public class CameraView {
         @Override
         public void dispatchOnFocusStart(@Nullable final Gesture gesture,
                                          @NonNull final PointF point) {
-            mLogger.i("dispatchOnFocusStart", gesture, point);
+            LOG.i("dispatchOnFocusStart", gesture, point);
             mUiHandler.post(new Runnable() {
                 @Override
                 public void run() {
@@ -1535,7 +1712,7 @@ public class CameraView {
         public void dispatchOnFocusEnd(@Nullable final Gesture gesture,
                                        final boolean success,
                                        @NonNull final PointF point) {
-            mLogger.i("dispatchOnFocusEnd", gesture, success, point);
+            LOG.i("dispatchOnFocusEnd", gesture, success, point);
             mUiHandler.post(new Runnable() {
                 @Override
                 public void run() {
@@ -1558,7 +1735,7 @@ public class CameraView {
 
         @Override
         public void onDeviceOrientationChanged(int deviceOrientation) {
-            mLogger.i("onDeviceOrientationChanged", deviceOrientation);
+            LOG.i("onDeviceOrientationChanged", deviceOrientation);
             int displayOffset = mOrientationHelper.getLastDisplayOffset();
             if (!mUseDeviceOrientation) {
                 // To fool the engine to return outputs in the VIEW reference system,
@@ -1581,12 +1758,12 @@ public class CameraView {
 
         @Override
         public void onDisplayOffsetChanged(int displayOffset, boolean willRecreate) {
-            mLogger.i("onDisplayOffsetChanged", displayOffset, "recreate:", willRecreate);
+            LOG.i("onDisplayOffsetChanged", displayOffset, "recreate:", willRecreate);
             if (isOpened() && !willRecreate) {
                 // Display offset changes when the device rotation lock is off and the activity
                 // is free to rotate. However, some changes will NOT recreate the activity, namely
                 // 180 degrees flips. In this case, we must restart the camera manually.
-                mLogger.w("onDisplayOffsetChanged", "restarting the camera.");
+                LOG.w("onDisplayOffsetChanged", "restarting the camera.");
                 close();
                 open();
             }
@@ -1594,7 +1771,7 @@ public class CameraView {
 
         @Override
         public void dispatchOnZoomChanged(final float newValue, @Nullable final PointF[] fingers) {
-            mLogger.i("dispatchOnZoomChanged", newValue);
+            LOG.i("dispatchOnZoomChanged", newValue);
             mUiHandler.post(new Runnable() {
                 @Override
                 public void run() {
@@ -1609,7 +1786,7 @@ public class CameraView {
         public void dispatchOnExposureCorrectionChanged(final float newValue,
                                                         @NonNull final float[] bounds,
                                                         @Nullable final PointF[] fingers) {
-            mLogger.i("dispatchOnExposureCorrectionChanged", newValue);
+            LOG.i("dispatchOnExposureCorrectionChanged", newValue);
             mUiHandler.post(new Runnable() {
                 @Override
                 public void run() {
@@ -1624,23 +1801,22 @@ public class CameraView {
         public void dispatchFrame(@NonNull final Frame frame) {
             // The getTime() below might crash if developers incorrectly release
             // frames asynchronously.
-            mLogger.v("dispatchFrame:", frame.getTime(), "processors:", mFrameProcessors.size());
+            LOG.v("dispatchFrame:", frame.getTime(), "processors:", mFrameProcessors.size());
             if (mFrameProcessors.isEmpty()) {
                 // Mark as released. This instance will be reused.
                 frame.release();
             } else {
                 // Dispatch this frame to frame processors.
-                mFrameProcessorsHandler.run(new Runnable() {
+                mFrameProcessingExecutor.execute(new Runnable() {
                     @Override
                     public void run() {
-                        mLogger.v("dispatchFrame: dispatching", frame.getTime(),
+                        LOG.v("dispatchFrame: executing. Passing", frame.getTime(),
                                 "to processors.");
                         for (FrameProcessor processor : mFrameProcessors) {
                             try {
                                 processor.process(frame);
                             } catch (Exception e) {
-                                // Don't let a single processor crash the processor thread.
-                                mLogger.w("Frame processor crashed:", e);
+                                LOG.w("Frame processor crashed:", e);
                             }
                         }
                         frame.release();
@@ -1651,7 +1827,7 @@ public class CameraView {
 
         @Override
         public void dispatchError(final CameraException exception) {
-            mLogger.i("dispatchError", exception);
+            LOG.i("dispatchError", exception);
             mUiHandler.post(new Runnable() {
                 @Override
                 public void run() {
@@ -1664,7 +1840,7 @@ public class CameraView {
 
         @Override
         public void dispatchOnVideoRecordingStart() {
-            mLogger.i("dispatchOnVideoRecordingStart");
+            LOG.i("dispatchOnVideoRecordingStart");
             mUiHandler.post(new Runnable() {
                 @Override
                 public void run() {
@@ -1677,7 +1853,7 @@ public class CameraView {
 
         @Override
         public void dispatchOnVideoRecordingEnd() {
-            mLogger.i("dispatchOnVideoRecordingEnd");
+            LOG.i("dispatchOnVideoRecordingEnd");
             mUiHandler.post(new Runnable() {
                 @Override
                 public void run() {
@@ -1687,7 +1863,299 @@ public class CameraView {
                 }
             });
         }
+
+        @Override
+        public void dispatchHidePreview() {
+            LOG.i("dispatchOnVideoRecordingEnd");
+            mUiHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    for (CameraListener listener : mListeners) {
+                        listener.onHidePreview();
+                    }
+                }
+            });
+        }
+
+        @Override
+        public void dispatchStopVideoRecording() {
+            LOG.i("dispatchStopVideoRecording");
+            mUiHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    for (CameraListener listener : mListeners) {
+                        listener.stopVideoRecording();
+                    }
+                }
+            });
+        }
     }
+
+    //endregion
+
+    //region Frame Processing
+
+    /**
+     * Adds a {@link FrameProcessor} instance to be notified of
+     * new frames in the preview stream.
+     *
+     * @param processor a frame processor.
+     */
+    public void addFrameProcessor(@Nullable FrameProcessor processor) {
+        if (processor != null) {
+            mFrameProcessors.add(processor);
+            if (mFrameProcessors.size() == 1) {
+                mCameraEngine.setHasFrameProcessors(true);
+            }
+        }
+    }
+
+    /**
+     * Remove a {@link FrameProcessor} that was previously registered.
+     *
+     * @param processor a frame processor
+     */
+    public void removeFrameProcessor(@Nullable FrameProcessor processor) {
+        if (processor != null) {
+            mFrameProcessors.remove(processor);
+            if (mFrameProcessors.size() == 0) {
+                mCameraEngine.setHasFrameProcessors(false);
+            }
+        }
+    }
+
+    /**
+     * Clears the list of {@link FrameProcessor} that have been registered
+     * to preview frames.
+     */
+    public void clearFrameProcessors() {
+        boolean had = mFrameProcessors.size() > 0;
+        mFrameProcessors.clear();
+        if (had) {
+            mCameraEngine.setHasFrameProcessors(false);
+        }
+    }
+
+    /**
+     * Sets the max width for frame processing {@link Frame}s.
+     * This option is only supported by {@link Engine#CAMERA2} and will have no effect
+     * on other engines.
+     *
+     * @param maxWidth max width for frames
+     */
+    public void setFrameProcessingMaxWidth(int maxWidth) {
+        mCameraEngine.setFrameProcessingMaxWidth(maxWidth);
+    }
+
+    /**
+     * Sets the max height for frame processing {@link Frame}s.
+     * This option is only supported by {@link Engine#CAMERA2} and will have no effect
+     * on other engines.
+     *
+     * @param maxHeight max height for frames
+     */
+    public void setFrameProcessingMaxHeight(int maxHeight) {
+        mCameraEngine.setFrameProcessingMaxHeight(maxHeight);
+    }
+
+    /**
+     * The max width for frame processing frames.
+     * @see #setFrameProcessingMaxWidth(int)
+     * @return max width
+     */
+    public int getFrameProcessingMaxWidth() {
+        return mCameraEngine.getFrameProcessingMaxWidth();
+    }
+
+    /**
+     * The max height for frame processing frames.
+     * @see #setFrameProcessingMaxHeight(int)
+     * @return max height
+     */
+    public int getFrameProcessingMaxHeight() {
+        return mCameraEngine.getFrameProcessingMaxHeight();
+    }
+
+    /**
+     * Sets the {@link android.graphics.ImageFormat} for frame processing.
+     * Before applying you should check {@link CameraOptions#getSupportedFrameProcessingFormats()}.
+     *
+     * @param format image format
+     */
+    public void setFrameProcessingFormat(int format) {
+        mCameraEngine.setFrameProcessingFormat(format);
+    }
+
+    /**
+     * Returns the current frame processing format.
+     * @see #setFrameProcessingFormat(int)
+     * @return image format
+     */
+    public int getFrameProcessingFormat() {
+        return mCameraEngine.getFrameProcessingFormat();
+    }
+
+    /**
+     * Sets the frame processing pool size. This is (roughly) the max number of
+     * {@link Frame} instances that can exist at a given moment in the frame pipeline,
+     * excluding frozen frames.
+     *
+     * Defaults to 2 - higher values will increase the memory usage with little benefit.
+     * Can be higher than 2 if {@link #setFrameProcessingExecutors(int)} is used.
+     * These values should be tuned together. We recommend setting a pool size that's equal to
+     * the number of executors plus 1, so that there's always a free Frame for the camera engine.
+     *
+     * Changing this value after camera initialization will have no effect.
+     * @param poolSize pool size
+     */
+    public void setFrameProcessingPoolSize(int poolSize) {
+        mCameraEngine.setFrameProcessingPoolSize(poolSize);
+    }
+
+    /**
+     * Returns the current frame processing pool size.
+     * @see #setFrameProcessingPoolSize(int)
+     * @return pool size
+     */
+    public int getFrameProcessingPoolSize() {
+        return mCameraEngine.getFrameProcessingPoolSize();
+    }
+
+    /**
+     * Sets the thread pool size for frame processing. This means that if the processing rate
+     * is slower than the preview rate, you can set this value to something bigger than 1
+     * to avoid losing frames.
+     * Defaults to 1 and this should be OK for most applications.
+     *
+     * Should be tuned depending on the task, the processor implementation, and along with
+     * {@link #setFrameProcessingPoolSize(int)}. We recommend choosing a pool size that is
+     * equal to the executors plus 1.
+     * @param executors thread count
+     */
+    public void setFrameProcessingExecutors(int executors) {
+        if (executors < 1) {
+            throw new IllegalArgumentException("Need at least 1 executor, got " + executors);
+        }
+        mFrameProcessingExecutors = executors;
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(
+                executors,
+                executors,
+                4,
+                TimeUnit.SECONDS,
+                new LinkedBlockingQueue<Runnable>(),
+                new ThreadFactory() {
+                    private final AtomicInteger mCount = new AtomicInteger(1);
+                    @Override
+                    public Thread newThread(@NonNull Runnable r) {
+                        return new Thread(r, "FrameExecutor #" + mCount.getAndIncrement());
+                    }
+                }
+        );
+        executor.allowCoreThreadTimeOut(true);
+        mFrameProcessingExecutor = executor;
+    }
+
+    /**
+     * Returns the current executors count.
+     * @see #setFrameProcessingExecutors(int)
+     * @return thread count
+     */
+    public int getFrameProcessingExecutors() {
+        return mFrameProcessingExecutors;
+    }
+
+    //endregion
+
+    //region Overlays
+
+//    @Override
+//    public LayoutParams generateLayoutParams(AttributeSet attributeSet) {
+//        if (!mInEditor && mOverlayLayout.isOverlay(attributeSet)) {
+//            return mOverlayLayout.generateLayoutParams(attributeSet);
+//        }
+//        return super.generateLayoutParams(attributeSet);
+//    }
+//
+//    @Override
+//    public void addView(View child, int index, ViewGroup.LayoutParams params) {
+//        if (!mInEditor && mOverlayLayout.isOverlay(params)) {
+//            mOverlayLayout.addView(child, params);
+//        } else {
+//            super.addView(child, index, params);
+//        }
+//    }
+//
+//    @Override
+//    public void removeView(View view) {
+//        ViewGroup.LayoutParams params = view.getLayoutParams();
+//        if (!mInEditor && params != null && mOverlayLayout.isOverlay(params)) {
+//            mOverlayLayout.removeView(view);
+//        } else {
+//            super.removeView(view);
+//        }
+//    }
+//
+//    //endregion
+//
+//    //region Filters
+//
+//    /**
+//     * Applies a real-time filter to the camera preview, if it supports it.
+//     * The only preview type that does so is currently {@link Preview#GL_SURFACE}.
+//     *
+//     * The filter will be applied to any picture snapshot taken with
+//     * {@link #takePictureSnapshot()} and any video snapshot taken with
+//     * {@link #takeVideoSnapshot(File)}.
+//     *
+//     * Use {@link NoFilter} to clear the existing filter,
+//     * and take a look at the {@link Filters} class for commonly used filters.
+//     *
+//     * This method will throw an exception if the current preview does not support real-time
+//     * filters. Make sure you use {@link Preview#GL_SURFACE} (the default).
+//     *
+//     * @see Filters
+//     * @param filter a new filter
+//     */
+//    public void setFilter(@NonNull Filter filter) {
+//        if (mCameraPreview == null) {
+//            mPendingFilter = filter;
+//        } else {
+//            boolean isNoFilter = filter instanceof NoFilter;
+//            boolean isFilterPreview = mCameraPreview instanceof FilterCameraPreview;
+//            // If not a filter preview, we only allow NoFilter (called on creation).
+//            if (!isNoFilter && !isFilterPreview) {
+//                throw new RuntimeException("Filters are only supported by the GL_SURFACE preview." +
+//                        " Current preview:" + mPreview);
+//            }
+//            // If we have a filter preview, apply.
+//            if (isFilterPreview) {
+//                ((FilterCameraPreview) mCameraPreview).setFilter(filter);
+//            }
+//            // No-op: !isFilterPreview && isNoPreview
+//        }
+//    }
+//
+//    /**
+//     * Returns the current real-time filter applied to the camera preview.
+//     *
+//     * This method will throw an exception if the current preview does not support real-time
+//     * filters. Make sure you use {@link Preview#GL_SURFACE} (the default).
+//     *
+//     * @see #setFilter(Filter)
+//     * @return the current filter
+//     */
+//    @NonNull
+//    public Filter getFilter() {
+//        if (mCameraPreview == null) {
+//            return mPendingFilter;
+//        } else if (mCameraPreview instanceof FilterCameraPreview) {
+//            return ((FilterCameraPreview) mCameraPreview).getCurrentFilter();
+//        } else {
+//            throw new RuntimeException("Filters are only supported by the GL_SURFACE preview. " +
+//                    "Current:" + mPreview);
+//        }
+//
+//    }
 
     //endregion
 }

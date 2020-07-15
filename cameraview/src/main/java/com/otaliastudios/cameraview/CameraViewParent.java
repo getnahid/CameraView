@@ -5,12 +5,19 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.PointF;
+import android.graphics.RectF;
+import android.os.Handler;
 import android.preference.PreferenceManager;
 import android.util.AttributeSet;
+import android.util.TypedValue;
+import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.widget.FrameLayout;
+import android.widget.ImageButton;
+import android.widget.ImageView;
 
 import androidx.annotation.ColorInt;
 import androidx.annotation.NonNull;
@@ -41,6 +48,7 @@ import com.otaliastudios.cameraview.internal.GridLinesLayout;
 import com.otaliastudios.cameraview.markers.AutoFocusMarker;
 import com.otaliastudios.cameraview.markers.MarkerLayout;
 import com.otaliastudios.cameraview.markers.MarkerParser;
+import com.otaliastudios.cameraview.metering.MeteringRegions;
 import com.otaliastudios.cameraview.overlay.OverlayLayout;
 import com.otaliastudios.cameraview.preview.CameraPreview;
 import com.otaliastudios.cameraview.preview.FilterCameraPreview;
@@ -58,6 +66,14 @@ import static android.view.View.MeasureSpec.UNSPECIFIED;
 import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 
 public class CameraViewParent extends FrameLayout implements LifecycleObserver {
+    public interface CameraParentCallback {
+
+        /**
+         * Called when the surface is available.
+         */
+        void onSurfaceAvailableAndOnBinded();
+    }
+
     // Gestures
     @VisibleForTesting PinchGestureFinder mPinchGestureFinder;
     @VisibleForTesting TapGestureFinder mTapGestureFinder;
@@ -77,13 +93,17 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
     private CameraPreview mCameraPreview;
     private Lifecycle mLifecycle;
     private boolean mKeepScreenOn;
-    private Preview mPreview = Preview.DEFAULT;
+    private Preview mPreview;
     private final static String TAG = CameraView.class.getSimpleName();
     private static final CameraLogger LOG = CameraLogger.create(TAG);
     private HashMap<Gesture, GestureAction> mGestureMap = new HashMap<>(4);
     private CameraEngine mCameraEngine;
     private Filter mPendingFilter;
     private boolean mExperimental;
+    private Size mLastPreviewStreamSize;
+    private Context context;
+    private ImageView recordingStopButton;
+    private ImageView dismissButton;
     public CameraViewParent(@NonNull Context context, CameraView cameraView) {
         super(context);
         this.cameraView = cameraView;
@@ -92,16 +112,26 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
         initialize(context);
     }
 
+    public void setParentCallback(CameraParentCallback cameraParentCallback) {
+        mCameraEngine.setCameraParentListener(cameraParentCallback);
+    }
+
+    public void removeParentCallBack(){
+        mCameraEngine.setCameraParentListener(null);
+    }
+
     public CameraViewParent(@NonNull Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
     }
 
     private void initialize(@NonNull Context context) {
+        this.context = context;
         mInEditor = isInEditMode();
         if (mInEditor) return;
         setWillNotDraw(false);
-        setBackgroundColor(Color.BLUE);
+        setBackgroundColor(Color.WHITE);
         preference = PreferenceManager.getDefaultSharedPreferences(context);
+
         // Gestures
         mPinchGestureFinder = new PinchGestureFinder(mCameraCallbacks);
         mTapGestureFinder = new TapGestureFinder(mCameraCallbacks);
@@ -131,6 +161,115 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
         int gridColor = GridLinesLayout.DEFAULT_COLOR;
         setGrid(Grid.DEFAULT);
         setGridColor(gridColor);
+        addButtons();
+        hideButtons();
+
+        mPreview = cameraView.getControlParser().getPreview();
+
+        if (mCameraPreview == null) {
+            doInstantiatePreview();
+        }
+    }
+
+    public void showButtons(){
+        dismissButton.setVisibility(VISIBLE);
+        recordingStopButton.setVisibility(VISIBLE);
+    }
+
+    public void hideButtons(){
+        mCurrentX = 0;
+        mCurrentY = 0;
+        dismissButton.setVisibility(INVISIBLE);
+        recordingStopButton.setVisibility(INVISIBLE);
+    }
+
+    private float mCurrentX = 0;
+    private float mCurrentY = 0;
+
+    @SuppressLint("ClickableViewAccessibility")
+    public void addButtons(){
+        final WindowManager windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+
+        recordingStopButton = new ImageButton(context);
+        recordingStopButton.setBackgroundColor(Color.parseColor("#00000000"));
+        recordingStopButton.setImageResource(R.drawable.stop_button);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+        lp.gravity = Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM;
+        float dp5 = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 5, context.getResources().getDisplayMetrics());
+        lp.setMargins(0,0,0, (int) dp5);
+        recordingStopButton.setLayoutParams(lp);
+
+        dismissButton = new ImageButton(context);
+        dismissButton.setBackgroundColor(Color.parseColor("#00000000"));
+        dismissButton.setImageResource(R.drawable.preview_close);
+        lp = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+        lp.gravity = Gravity.RIGHT | Gravity.TOP;
+        float dp8 = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 8, context.getResources().getDisplayMetrics());
+        lp.setMargins(0,0,(int) dp8,  0);
+        dismissButton.setLayoutParams(lp);
+
+        addView(recordingStopButton);
+        addView(dismissButton);
+
+        final boolean[] enabled = {true};
+
+        this.setOnTouchListener(new OnTouchListener() {
+            private float mDx;
+            private float mDy;
+            @Override
+            public boolean onTouch(View view, MotionEvent event) {
+                if(recordingStopButton.getVisibility() == INVISIBLE){
+                    return true;
+                }
+
+                int action = event.getAction();
+                if (action == MotionEvent.ACTION_DOWN) {
+                    mDx = mCurrentX - event.getRawX();
+                    mDy = mCurrentY - event.getRawY();
+                } else
+                if (action == MotionEvent.ACTION_MOVE) {
+                    mCurrentX = (int) (event.getRawX() + mDx);
+                    mCurrentY = (int) (event.getRawY() + mDy);
+                    WindowManager.LayoutParams layoutParams = (WindowManager.LayoutParams) getLayoutParams();
+                    layoutParams.x = (int) mCurrentX;
+                    layoutParams.y = (int) mCurrentY;
+                    layoutParams.height = view.getHeight();
+                    layoutParams.width = view.getWidth();
+                    windowManager.updateViewLayout(view, layoutParams);
+                }
+
+                if(!enabled[0]){
+                    return true;
+                }
+
+                enabled[0] = false;
+
+                new Handler().postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        enabled[0] = true;
+                    }
+                }, 500);
+
+                int x = (int)event.getX();
+                int y = (int)event.getY();
+
+                if(x >= recordingStopButton.getLeft() && x <= recordingStopButton.getRight()
+                        && y >= recordingStopButton.getTop() && y<= recordingStopButton.getBottom()) {
+                    if(cameraView.isTakingVideo()){
+                        cameraView.getCameraCallbacks().dispatchHidePreview();
+                        cameraView.getCameraCallbacks().dispatchStopVideoRecording();
+                    }
+                }
+
+                if(x >= dismissButton.getLeft() && x <= dismissButton.getRight()
+                        && y >= dismissButton.getTop() && y<= dismissButton.getBottom()) {
+                    cameraView.getCameraCallbacks().dispatchHidePreview();
+                }
+
+                return true;
+            }
+        });
     }
 
     /**
@@ -264,11 +403,11 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         //if (mInEditor) return;
-        if (mCameraPreview == null) {
-            // isHardwareAccelerated will return the real value only after we are
-            // attached. That's why we instantiate the preview here.
-            doInstantiatePreview();
-        }
+//        if (mCameraPreview == null) {
+//            // isHardwareAccelerated will return the real value only after we are
+//            // attached. That's why we instantiate the preview here.
+//            doInstantiatePreview();
+//        }
         //mOrientationHelper.enable(getContext());
     }
 
@@ -360,8 +499,6 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
 
     //endregion
 
-    //region Filters
-
     /**
      * Applies a real-time filter to the camera preview, if it supports it.
      * The only preview type that does so is currently {@link Preview#GL_SURFACE}.
@@ -385,11 +522,6 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
         } else {
             boolean isNoFilter = filter instanceof NoFilter;
             boolean isFilterPreview = mCameraPreview instanceof FilterCameraPreview;
-            // If not experimental, we only allow NoFilter (called on creation).
-            if (!isNoFilter && !mExperimental) {
-                throw new RuntimeException("Filters are an experimental features and" +
-                        " need the experimental flag set.");
-            }
             // If not a filter preview, we only allow NoFilter (called on creation).
             if (!isNoFilter && !isFilterPreview) {
                 throw new RuntimeException("Filters are only supported by the GL_SURFACE preview." +
@@ -414,10 +546,7 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
      */
     @NonNull
     public Filter getFilter() {
-        if (!mExperimental) {
-            throw new RuntimeException("Filters are an experimental features and need " +
-                    "the experimental flag set.");
-        } else if (mCameraPreview == null) {
+        if (mCameraPreview == null) {
             return mPendingFilter;
         } else if (mCameraPreview instanceof FilterCameraPreview) {
             return ((FilterCameraPreview) mCameraPreview).getCurrentFilter();
@@ -427,6 +556,8 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
         }
 
     }
+
+    //endregion
 
     //end region overlay
 
@@ -444,10 +575,30 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
         if (y < 0 || y > getHeight()) {
             throw new IllegalArgumentException("y should be >= 0 and <= getHeight()");
         }
-        mCameraEngine.startAutoFocus(null, new PointF(x, y));
+        Size size = new Size(getWidth(), getHeight());
+        PointF point = new PointF(x, y);
+        MeteringRegions regions = MeteringRegions.fromPoint(size, point);
+        mCameraEngine.startAutoFocus(null, regions, point);
     }
 
-    //region Measuring behavior
+    /**
+     * Starts a 3A touch metering process at the given coordinates, with respect
+     * to the view width and height.
+     *
+     * @param region should be between 0 and getWidth() / getHeight()
+     */
+    public void startAutoFocus(@NonNull RectF region) {
+        RectF full = new RectF(0, 0, getWidth(), getHeight());
+        if (!full.contains(region)) {
+            throw new IllegalArgumentException("Region is out of view bounds! " + region);
+        }
+        Size size = new Size(getWidth(), getHeight());
+        MeteringRegions regions = MeteringRegions.fromArea(size, region);
+        mCameraEngine.startAutoFocus(null, regions,
+                new PointF(region.centerX(), region.centerY()));
+    }
+
+//region Measuring behavior
 
     private String ms(int mode) {
         switch (mode) {
@@ -484,8 +635,8 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
             return;
         }
 
-        Size previewSize = mCameraEngine.getPreviewStreamSize(Reference.VIEW);
-        if (previewSize == null) {
+        mLastPreviewStreamSize = mCameraEngine.getPreviewStreamSize(Reference.VIEW);
+        if (mLastPreviewStreamSize == null) {
             LOG.w("onMeasure:", "surface is not ready. Calling default behavior.");
             super.onMeasure(widthMeasureSpec, heightMeasureSpec);
             return;
@@ -496,8 +647,8 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
         int heightMode = MeasureSpec.getMode(heightMeasureSpec);
         final int widthValue = MeasureSpec.getSize(widthMeasureSpec);
         final int heightValue = MeasureSpec.getSize(heightMeasureSpec);
-        final float previewWidth = previewSize.getWidth();
-        final float previewHeight = previewSize.getHeight();
+        final float previewWidth = mLastPreviewStreamSize.getWidth();
+        final float previewHeight = mLastPreviewStreamSize.getHeight();
 
         // Pre-process specs
         final ViewGroup.LayoutParams lp = getLayoutParams();
@@ -512,10 +663,11 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
             if (heightMode == AT_MOST && lp.height == MATCH_PARENT) heightMode = EXACTLY;
         }
 
-        LOG.i("onMeasure:", "requested dimensions are (" + widthValue + "[" + ms(widthMode)
-                + "]x" + heightValue + "[" + ms(heightMode) + "])");
-        LOG.i("onMeasure:",  "previewSize is", "(" + previewWidth + "x"
-                + previewHeight + ")");
+        LOG.i("onMeasure:", "requested dimensions are ("
+                + widthValue + "[" + ms(widthMode) + "]x"
+                + heightValue + "[" + ms(heightMode) + "])");
+        LOG.i("onMeasure:",  "previewSize is", "("
+                + previewWidth + "x" + previewHeight + ")");
 
         // (1) If we have fixed dimensions (either 300dp or MATCH_PARENT), there's nothing we
         // should do, other than respect it. The preview will eventually be cropped at the sides
@@ -681,7 +833,7 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
     @SuppressLint("ClickableViewAccessibility")
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if (!cameraView.isOpened()) return true;
+        //if (!isOpened()) return true;
 
         // Pass to our own GestureLayouts
         CameraOptions options = mCameraEngine.getCameraOptions(); // Non null
@@ -716,7 +868,9 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
                 break;
 
             case AUTO_FOCUS:
-                mCameraEngine.startAutoFocus(gesture, points[0]);
+                Size size = new Size(getWidth(), getHeight());
+                MeteringRegions regions = MeteringRegions.fromPoint(size, points[0]);
+                mCameraEngine.startAutoFocus(gesture, regions, points[0]);
                 break;
 
             case ZOOM:
@@ -739,7 +893,6 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
                 break;
 
             case FILTER_CONTROL_1:
-                if (!mExperimental) break;
                 if (getFilter() instanceof OneParameterFilter) {
                     OneParameterFilter filter = (OneParameterFilter) getFilter();
                     oldValue = filter.getParameter1();
@@ -751,7 +904,6 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
                 break;
 
             case FILTER_CONTROL_2:
-                if (!mExperimental) break;
                 if (getFilter() instanceof TwoParameterFilter) {
                     TwoParameterFilter filter = (TwoParameterFilter) getFilter();
                     oldValue = filter.getParameter2();

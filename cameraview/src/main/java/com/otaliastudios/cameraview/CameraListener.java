@@ -12,7 +12,8 @@ import androidx.annotation.UiThread;
  */
 @SuppressWarnings({"WeakerAccess", "unused"})
 public abstract class CameraListener {
-
+    @UiThread
+    public void onCameraBinded() { }
 
     /**
      * Notifies that the camera was opened.
@@ -158,6 +159,14 @@ public abstract class CameraListener {
      */
     @UiThread
     public void onVideoRecordingEnd() {
+
+    }
+
+    public void onHidePreview() {
+
+    }
+
+    public void stopVideoRecording() {
 
     }
 

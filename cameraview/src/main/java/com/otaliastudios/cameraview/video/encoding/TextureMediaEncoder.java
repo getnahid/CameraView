@@ -10,10 +10,10 @@ import androidx.annotation.RequiresApi;
 
 import com.otaliastudios.cameraview.CameraLogger;
 import com.otaliastudios.cameraview.filter.Filter;
-import com.otaliastudios.cameraview.internal.egl.EglCore;
-import com.otaliastudios.cameraview.internal.egl.EglViewport;
-import com.otaliastudios.cameraview.internal.egl.EglWindowSurface;
-import com.otaliastudios.cameraview.internal.utils.Pool;
+import com.otaliastudios.cameraview.internal.GlTextureDrawer;
+import com.otaliastudios.cameraview.internal.Pool;
+import com.otaliastudios.opengl.core.EglCore;
+import com.otaliastudios.opengl.surface.EglWindowSurface;
 
 /**
  * Default implementation for video encoding.
@@ -30,7 +30,7 @@ public class TextureMediaEncoder extends VideoMediaEncoder<TextureConfig> {
     private int mTransformRotation;
     private EglCore mEglCore;
     private EglWindowSurface mWindow;
-    private EglViewport mViewport;
+    private GlTextureDrawer mDrawer;
     private Pool<Frame> mFramePool = new Pool<>(Integer.MAX_VALUE, new Pool.Factory<Frame>() {
         @Override
         public Frame create() {
@@ -99,7 +99,7 @@ public class TextureMediaEncoder extends VideoMediaEncoder<TextureConfig> {
         mEglCore = new EglCore(mConfig.eglContext, EglCore.FLAG_RECORDABLE);
         mWindow = new EglWindowSurface(mEglCore, mSurface, true);
         mWindow.makeCurrent();
-        mViewport = new EglViewport();
+        mDrawer = new GlTextureDrawer(mConfig.textureId);
     }
 
     /**
@@ -119,12 +119,13 @@ public class TextureMediaEncoder extends VideoMediaEncoder<TextureConfig> {
     @Override
     protected boolean shouldRenderFrame(long timestampUs) {
         if (!super.shouldRenderFrame(timestampUs)) {
+            LOG.i("shouldRenderFrame - Dropping frame because of super()");
             return false;
         } else if (mFrameNumber <= 10) {
             // Always render the first few frames, or muxer fails.
             return true;
         } else if (getPendingEvents(FRAME_EVENT) > 2) {
-            LOG.v("shouldRenderFrame - Dropping, we already have too many pending events:",
+            LOG.i("shouldRenderFrame - Dropping, we already have too many pending events:",
                     getPendingEvents(FRAME_EVENT));
             return false;
         } else {
@@ -148,7 +149,7 @@ public class TextureMediaEncoder extends VideoMediaEncoder<TextureConfig> {
     }
 
     private void onFilter(@NonNull Filter filter) {
-        mViewport.setFilter(filter);
+        mDrawer.setFilter(filter);
     }
 
     private void onFrame(@NonNull Frame frame) {
@@ -177,17 +178,21 @@ public class TextureMediaEncoder extends VideoMediaEncoder<TextureConfig> {
         }
 
         // First, drain any previous data.
-        LOG.v("onEvent -",
+        LOG.i("onEvent -",
                 "frameNumber:", mFrameNumber,
                 "timestampUs:", frame.timestampUs(),
+                "hasReachedMaxLength:", hasReachedMaxLength(),
+                "thread:", Thread.currentThread(),
                 "- draining.");
         drainOutput(false);
 
         // Then draw on the surface.
-        LOG.v("onEvent -",
+        LOG.i("onEvent -",
                 "frameNumber:", mFrameNumber,
                 "timestampUs:", frame.timestampUs(),
-                "- rendering.");
+                "hasReachedMaxLength:", hasReachedMaxLength(),
+                "thread:", Thread.currentThread(),
+                "- drawing.");
 
         // 1. We must scale this matrix like GlCameraPreview does, because it might have some
         // cropping. Scaling takes place with respect to the (0, 0, 0) point, so we must apply
@@ -218,13 +223,26 @@ public class TextureMediaEncoder extends VideoMediaEncoder<TextureConfig> {
             Matrix.translateM(mConfig.overlayDrawer.getTransform(),
                     0, -0.5F, -0.5F, 0);
         }
-        mViewport.drawFrame(frame.timestampUs(), mConfig.textureId, transform);
+        LOG.i("onEvent -",
+                "frameNumber:", mFrameNumber,
+                "timestampUs:", frame.timestampUs(),
+                "hasReachedMaxLength:", hasReachedMaxLength(),
+                "thread:", Thread.currentThread(),
+                "- gl rendering.");
+        mDrawer.setTextureTransform(transform);
+        mDrawer.draw(frame.timestampUs());
         if (mConfig.hasOverlay()) {
             mConfig.overlayDrawer.render(frame.timestampUs());
         }
         mWindow.setPresentationTime(frame.timestampNanos);
         mWindow.swapBuffers();
         mFramePool.recycle(frame);
+        LOG.i("onEvent -",
+                "frameNumber:", mFrameNumber,
+                "timestampUs:", frame.timestampUs(),
+                "hasReachedMaxLength:", hasReachedMaxLength(),
+                "thread:", Thread.currentThread(),
+                "- gl rendered.");
     }
 
     @Override
@@ -235,9 +253,9 @@ public class TextureMediaEncoder extends VideoMediaEncoder<TextureConfig> {
             mWindow.release();
             mWindow = null;
         }
-        if (mViewport != null) {
-            mViewport.release();
-            mViewport = null;
+        if (mDrawer != null) {
+            mDrawer.release();
+            mDrawer = null;
         }
         if (mEglCore != null) {
             mEglCore.release();

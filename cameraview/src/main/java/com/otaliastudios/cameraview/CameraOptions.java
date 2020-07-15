@@ -2,305 +2,67 @@ package com.otaliastudios.cameraview;
 
 
 import android.graphics.ImageFormat;
-import android.hardware.Camera;
-import android.hardware.camera2.CameraAccessException;
-import android.hardware.camera2.CameraCharacteristics;
-import android.hardware.camera2.CameraManager;
-import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.CamcorderProfile;
-import android.media.MediaRecorder;
 import android.os.Build;
-import android.util.Range;
-import android.util.Rational;
+
+import androidx.annotation.NonNull;
 
 import com.otaliastudios.cameraview.controls.Audio;
 import com.otaliastudios.cameraview.controls.Control;
 import com.otaliastudios.cameraview.controls.Engine;
 import com.otaliastudios.cameraview.controls.Facing;
 import com.otaliastudios.cameraview.controls.Flash;
+import com.otaliastudios.cameraview.controls.PictureFormat;
 import com.otaliastudios.cameraview.controls.Preview;
-import com.otaliastudios.cameraview.engine.mappers.Camera1Mapper;
-import com.otaliastudios.cameraview.engine.mappers.Camera2Mapper;
 import com.otaliastudios.cameraview.gesture.GestureAction;
 import com.otaliastudios.cameraview.controls.Grid;
 import com.otaliastudios.cameraview.controls.Hdr;
 import com.otaliastudios.cameraview.controls.Mode;
+import com.otaliastudios.cameraview.controls.PictureFormat;
+import com.otaliastudios.cameraview.controls.Preview;
 import com.otaliastudios.cameraview.controls.VideoCodec;
 import com.otaliastudios.cameraview.controls.WhiteBalance;
-import com.otaliastudios.cameraview.internal.utils.CamcorderProfiles;
+import com.otaliastudios.cameraview.gesture.GestureAction;
 import com.otaliastudios.cameraview.size.AspectRatio;
 import com.otaliastudios.cameraview.size.Size;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.RequiresApi;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
  * Options telling you what is available and what is not.
  */
-public class CameraOptions {
+public abstract class CameraOptions {
 
-    private Set<WhiteBalance> supportedWhiteBalance = new HashSet<>(5);
-    private Set<Facing> supportedFacing = new HashSet<>(2);
-    private Set<Flash> supportedFlash = new HashSet<>(4);
-    private Set<Hdr> supportedHdr = new HashSet<>(2);
-    private Set<Size> supportedPictureSizes = new HashSet<>(15);
-    private Set<Size> supportedVideoSizes = new HashSet<>(5);
-    private Set<AspectRatio> supportedPictureAspectRatio = new HashSet<>(4);
-    private Set<AspectRatio> supportedVideoAspectRatio = new HashSet<>(3);
+    protected Set<WhiteBalance> supportedWhiteBalance = new HashSet<>(5);
+    protected Set<Facing> supportedFacing = new HashSet<>(2);
+    protected Set<Flash> supportedFlash = new HashSet<>(4);
+    protected Set<Hdr> supportedHdr = new HashSet<>(2);
+    protected Set<Size> supportedPictureSizes = new HashSet<>(15);
+    protected Set<Size> supportedVideoSizes = new HashSet<>(5);
+    protected Set<AspectRatio> supportedPictureAspectRatio = new HashSet<>(4);
+    protected Set<AspectRatio> supportedVideoAspectRatio = new HashSet<>(3);
+    protected Set<PictureFormat> supportedPictureFormats = new HashSet<>(2);
+    protected Set<Integer> supportedFrameProcessingFormats = new HashSet<>(2);
 
-    private boolean zoomSupported;
-    private boolean exposureCorrectionSupported;
-    private float exposureCorrectionMinValue;
-    private float exposureCorrectionMaxValue;
-    private boolean autoFocusSupported;
-    private float previewFrameRateMinValue;
-    private float previewFrameRateMaxValue;
+    protected boolean zoomSupported;
+    protected boolean exposureCorrectionSupported;
+    protected float exposureCorrectionMinValue;
+    protected float exposureCorrectionMaxValue;
+    protected boolean autoFocusSupported;
+    protected float previewFrameRateMinValue;
+    protected float previewFrameRateMaxValue;
 
-
-    public CameraOptions(@NonNull Camera.Parameters params, int cameraId, boolean flipSizes) {
-        List<String> strings;
-        Camera1Mapper mapper = Camera1Mapper.get();
-
-        // Facing
-        Camera.CameraInfo cameraInfo = new Camera.CameraInfo();
-        for (int i = 0, count = Camera.getNumberOfCameras(); i < count; i++) {
-            Camera.getCameraInfo(i, cameraInfo);
-            Facing value = mapper.unmapFacing(cameraInfo.facing);
-            if (value != null) supportedFacing.add(value);
-        }
-
-        // WB
-        strings = params.getSupportedWhiteBalance();
-        if (strings != null) {
-            for (String string : strings) {
-                WhiteBalance value = mapper.unmapWhiteBalance(string);
-                if (value != null) supportedWhiteBalance.add(value);
-            }
-        }
-
-        // Flash
-        supportedFlash.add(Flash.OFF);
-        strings = params.getSupportedFlashModes();
-        if (strings != null) {
-            for (String string : strings) {
-                Flash value = mapper.unmapFlash(string);
-                if (value != null) supportedFlash.add(value);
-            }
-        }
-
-        // Hdr
-        supportedHdr.add(Hdr.OFF);
-        strings = params.getSupportedSceneModes();
-        if (strings != null) {
-            for (String string : strings) {
-                Hdr value = mapper.unmapHdr(string);
-                if (value != null) supportedHdr.add(value);
-            }
-        }
-
-        // zoom
-        zoomSupported = params.isZoomSupported();
-
-        // autofocus
-        autoFocusSupported = params.getSupportedFocusModes()
-                .contains(Camera.Parameters.FOCUS_MODE_AUTO);
-
-        // Exposure correction
-        float step = params.getExposureCompensationStep();
-        exposureCorrectionMinValue = (float) params.getMinExposureCompensation() * step;
-        exposureCorrectionMaxValue = (float) params.getMaxExposureCompensation() * step;
-        exposureCorrectionSupported = params.getMinExposureCompensation() != 0
-                || params.getMaxExposureCompensation() != 0;
-
-        // Picture Sizes
-        List<Camera.Size> sizes = params.getSupportedPictureSizes();
-        for (Camera.Size size : sizes) {
-            int width = flipSizes ? size.height : size.width;
-            int height = flipSizes ? size.width : size.height;
-            supportedPictureSizes.add(new Size(width, height));
-            supportedPictureAspectRatio.add(AspectRatio.of(width, height));
-        }
-
-        // Video Sizes
-        // As a safety measure, remove Sizes bigger than CamcorderProfile.highest
-        CamcorderProfile profile = CamcorderProfiles.get(cameraId,
-                new Size(Integer.MAX_VALUE, Integer.MAX_VALUE));
-        Size videoMaxSize = new Size(profile.videoFrameWidth, profile.videoFrameHeight);
-        List<Camera.Size> vsizes = params.getSupportedVideoSizes();
-        if (vsizes != null) {
-            for (Camera.Size size : vsizes) {
-                if (size.width <= videoMaxSize.getWidth()
-                        && size.height <= videoMaxSize.getHeight()) {
-                    int width = flipSizes ? size.height : size.width;
-                    int height = flipSizes ? size.width : size.height;
-                    supportedVideoSizes.add(new Size(width, height));
-                    supportedVideoAspectRatio.add(AspectRatio.of(width, height));
-                }
-            }
-        } else {
-            // StackOverflow threads seems to agree that if getSupportedVideoSizes is null,
-            // previews can be used.
-            List<Camera.Size> fallback = params.getSupportedPreviewSizes();
-            for (Camera.Size size : fallback) {
-                if (size.width <= videoMaxSize.getWidth()
-                        && size.height <= videoMaxSize.getHeight()) {
-                    int width = flipSizes ? size.height : size.width;
-                    int height = flipSizes ? size.width : size.height;
-                    supportedVideoSizes.add(new Size(width, height));
-                    supportedVideoAspectRatio.add(AspectRatio.of(width, height));
-                }
-            }
-        }
-
-        // Preview FPS
-        previewFrameRateMinValue = Float.MAX_VALUE;
-        previewFrameRateMaxValue = -Float.MAX_VALUE;
-        List<int[]> fpsRanges = params.getSupportedPreviewFpsRange();
-        for (int[] fpsRange : fpsRanges) {
-            float lower = (float) fpsRange[0] / 1000F;
-            float upper = (float) fpsRange[1] / 1000F;
-            previewFrameRateMinValue = Math.min(previewFrameRateMinValue, lower);
-            previewFrameRateMaxValue = Math.max(previewFrameRateMaxValue, upper);
-        }
-    }
-
-    // Camera2Engine constructor.
-    @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
-    public CameraOptions(@NonNull CameraManager manager,
-                         @NonNull String cameraId,
-                         boolean flipSizes) throws CameraAccessException {
-        Camera2Mapper mapper = Camera2Mapper.get();
-        CameraCharacteristics cameraCharacteristics = manager.getCameraCharacteristics(cameraId);
-
-        // Facing
-        for (String cameraId1 : manager.getCameraIdList()) {
-            CameraCharacteristics cameraCharacteristics1 = manager
-                    .getCameraCharacteristics(cameraId1);
-            Integer cameraFacing = cameraCharacteristics1.get(CameraCharacteristics.LENS_FACING);
-            if (cameraFacing != null) {
-                Facing value = mapper.unmapFacing(cameraFacing);
-                if (value != null) supportedFacing.add(value);
-            }
-        }
-
-        // WB
-        int[] awbModes = cameraCharacteristics.get(
-                CameraCharacteristics.CONTROL_AWB_AVAILABLE_MODES);
-        //noinspection ConstantConditions
-        for (int awbMode : awbModes) {
-            WhiteBalance value = mapper.unmapWhiteBalance(awbMode);
-            if (value != null) supportedWhiteBalance.add(value);
-        }
-
-        // Flash
-        supportedFlash.add(Flash.OFF);
-        Boolean hasFlash = cameraCharacteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
-        if (hasFlash != null && hasFlash) {
-            int[] aeModes = cameraCharacteristics.get(
-                    CameraCharacteristics.CONTROL_AE_AVAILABLE_MODES);
-            //noinspection ConstantConditions
-            for (int aeMode : aeModes) {
-                Set<Flash> flashes = mapper.unmapFlash(aeMode);
-                supportedFlash.addAll(flashes);
-            }
-        }
-
-        // HDR
-        supportedHdr.add(Hdr.OFF);
-        int[] sceneModes = cameraCharacteristics.get(
-                CameraCharacteristics.CONTROL_AVAILABLE_SCENE_MODES);
-        //noinspection ConstantConditions
-        for (int sceneMode : sceneModes) {
-            Hdr value = mapper.unmapHdr(sceneMode);
-            if (value != null) supportedHdr.add(value);
-        }
-
-        // Zoom
-        Float maxZoom = cameraCharacteristics.get(
-                CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM);
-        if(maxZoom != null) {
-            zoomSupported = maxZoom > 1;
-        }
-
-
-        // AutoFocus
-        // This now means 3A metering with respect to a specific region of the screen.
-        // Some controls (AF, AE) have special triggers that might or might not be supported.
-        // But they can also be on some continuous search mode so that the trigger is not needed.
-        // What really matters in my opinion is the availability of regions.
-        Integer afRegions = cameraCharacteristics.get(CameraCharacteristics.CONTROL_MAX_REGIONS_AF);
-        Integer aeRegions = cameraCharacteristics.get(CameraCharacteristics.CONTROL_MAX_REGIONS_AE);
-        Integer awbRegions = cameraCharacteristics.get(
-                CameraCharacteristics.CONTROL_MAX_REGIONS_AWB);
-        autoFocusSupported = (afRegions != null && afRegions > 0)
-                || (aeRegions != null && aeRegions > 0)
-                || (awbRegions != null && awbRegions > 0);
-
-        // Exposure correction
-        Range<Integer> exposureRange = cameraCharacteristics.get(
-                CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE);
-        Rational exposureStep = cameraCharacteristics.get(
-                CameraCharacteristics.CONTROL_AE_COMPENSATION_STEP);
-        if (exposureRange != null && exposureStep != null && exposureStep.floatValue() != 0) {
-            exposureCorrectionMinValue = exposureRange.getLower() / exposureStep.floatValue();
-            exposureCorrectionMaxValue = exposureRange.getUpper() / exposureStep.floatValue();
-        }
-        exposureCorrectionSupported = exposureCorrectionMinValue != 0
-                && exposureCorrectionMaxValue != 0;
-
-
-        // Picture Sizes
-        StreamConfigurationMap streamMap = cameraCharacteristics.get(
-                CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-        if (streamMap == null) {
-            throw new RuntimeException("StreamConfigurationMap is null. Should not happen.");
-        }
-        android.util.Size[] psizes = streamMap.getOutputSizes(ImageFormat.JPEG);
-        for (android.util.Size size : psizes) {
-            int width = flipSizes ? size.getHeight() : size.getWidth();
-            int height = flipSizes ? size.getWidth() : size.getHeight();
-            supportedPictureSizes.add(new Size(width, height));
-            supportedPictureAspectRatio.add(AspectRatio.of(width, height));
-        }
-
-        // Video Sizes
-        // As a safety measure, remove Sizes bigger than CamcorderProfile.highest
-        CamcorderProfile profile = CamcorderProfiles.get(cameraId,
-                new Size(Integer.MAX_VALUE, Integer.MAX_VALUE));
-        Size videoMaxSize = new Size(profile.videoFrameWidth, profile.videoFrameHeight);
-        android.util.Size[] vsizes = streamMap.getOutputSizes(MediaRecorder.class);
-        for (android.util.Size size : vsizes) {
-            if (size.getWidth() <= videoMaxSize.getWidth()
-                    && size.getHeight() <= videoMaxSize.getHeight()) {
-                int width = flipSizes ? size.getHeight() : size.getWidth();
-                int height = flipSizes ? size.getWidth() : size.getHeight();
-                supportedVideoSizes.add(new Size(width, height));
-                supportedVideoAspectRatio.add(AspectRatio.of(width, height));
-            }
-        }
-
-        // Preview FPS
-        Range<Integer>[] range = cameraCharacteristics.get(
-                CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
-        if (range != null) {
-            previewFrameRateMinValue = Float.MAX_VALUE;
-            previewFrameRateMaxValue = -Float.MAX_VALUE;
-            for (Range<Integer> fpsRange : range) {
-                previewFrameRateMinValue = Math.min(previewFrameRateMinValue, fpsRange.getLower());
-                previewFrameRateMaxValue = Math.max(previewFrameRateMaxValue, fpsRange.getUpper());
-            }
-        } else {
-            previewFrameRateMinValue = 0F;
-            previewFrameRateMaxValue = 0F;
-        }
-    }
+    protected CameraOptions() { }
 
     /**
      * Shorthand for getSupported*().contains(value).
@@ -308,7 +70,7 @@ public class CameraOptions {
      * @param control value to check
      * @return whether it's supported
      */
-    public boolean supports(@NonNull Control control) {
+    public final boolean supports(@NonNull Control control) {
         return getSupportedControls(control.getClass()).contains(control);
     }
 
@@ -319,7 +81,7 @@ public class CameraOptions {
      * @param action value to be checked
      * @return whether it's supported
      */
-    public boolean supports(@NonNull GestureAction action) {
+    public final boolean supports(@NonNull GestureAction action) {
         switch (action) {
             case AUTO_FOCUS:
                 return isAutoFocusSupported();
@@ -338,7 +100,8 @@ public class CameraOptions {
 
     @SuppressWarnings("unchecked")
     @NonNull
-    public <T extends Control> Collection<T> getSupportedControls(@NonNull Class<T> controlClass) {
+    public final <T extends Control> Collection<T> getSupportedControls(
+            @NonNull Class<T> controlClass) {
         if (controlClass.equals(Audio.class)) {
             return (Collection<T>) Arrays.asList(Audio.values());
         } else if (controlClass.equals(Facing.class)) {
@@ -359,6 +122,8 @@ public class CameraOptions {
             return (Collection<T>) Arrays.asList(Engine.values());
         } else if (controlClass.equals(Preview.class)) {
             return (Collection<T>) Arrays.asList(Preview.values());
+        } else if (controlClass.equals(PictureFormat.class)) {
+            return (Collection<T>) getSupportedPictureFormats();
         }
         // Unrecognized control.
         return Collections.emptyList();
@@ -370,7 +135,7 @@ public class CameraOptions {
      * @return a collection of supported values.
      */
     @NonNull
-    public Collection<Size> getSupportedPictureSizes() {
+    public final Collection<Size> getSupportedPictureSizes() {
         return Collections.unmodifiableSet(supportedPictureSizes);
     }
 
@@ -379,10 +144,35 @@ public class CameraOptions {
      *
      * @return a collection of supported values.
      */
-    @SuppressWarnings("WeakerAccess")
     @NonNull
-    public Collection<AspectRatio> getSupportedPictureAspectRatios() {
+    public final Collection<AspectRatio> getSupportedPictureAspectRatios() {
         return Collections.unmodifiableSet(supportedPictureAspectRatio);
+    }
+
+    protected static Map<Integer, Integer> sizeToProfileMap = new HashMap<>();
+    static {
+        if (Build.VERSION.SDK_INT >= 21) {
+            sizeToProfileMap.put(2160, CamcorderProfile.QUALITY_2160P);
+        }
+        sizeToProfileMap.put(1080, CamcorderProfile.QUALITY_1080P);
+        sizeToProfileMap.put(720, CamcorderProfile.QUALITY_720P);
+        sizeToProfileMap.put(480, CamcorderProfile.QUALITY_480P);
+        sizeToProfileMap.put(288, CamcorderProfile.QUALITY_CIF);
+        sizeToProfileMap.put(240, CamcorderProfile.QUALITY_QVGA);
+        sizeToProfileMap.put(144, CamcorderProfile.QUALITY_QCIF);
+    }
+
+    protected static List<Size> sizeList = new ArrayList<>();
+    static {
+        if (Build.VERSION.SDK_INT >= 21) {
+            sizeList.add(new Size(3840, 2160));
+        }
+        sizeList.add(new Size(1920,1080));
+        sizeList.add(new Size(1280,720));
+        sizeList.add(new Size(720,480));
+        sizeList.add(new Size(352,288));
+        sizeList.add(new Size(320,240));
+        sizeList.add(new Size(176,144));
     }
 
     /**
@@ -391,7 +181,7 @@ public class CameraOptions {
      * @return a collection of supported values.
      */
     @NonNull
-    public Collection<Size> getSupportedVideoSizes() {
+    public final Collection<Size> getSupportedVideoSizes() {
         return Collections.unmodifiableSet(supportedVideoSizes);
     }
 
@@ -400,9 +190,8 @@ public class CameraOptions {
      *
      * @return a set of supported values.
      */
-    @SuppressWarnings("WeakerAccess")
     @NonNull
-    public Collection<AspectRatio> getSupportedVideoAspectRatios() {
+    public final Collection<AspectRatio> getSupportedVideoAspectRatios() {
         return Collections.unmodifiableSet(supportedVideoAspectRatio);
     }
 
@@ -414,7 +203,7 @@ public class CameraOptions {
      * @return a collection of supported values.
      */
     @NonNull
-    public Collection<Facing> getSupportedFacing() {
+    public final Collection<Facing> getSupportedFacing() {
         return Collections.unmodifiableSet(supportedFacing);
     }
 
@@ -428,7 +217,7 @@ public class CameraOptions {
      * @return a collection of supported values.
      */
     @NonNull
-    public Collection<Flash> getSupportedFlash() {
+    public final Collection<Flash> getSupportedFlash() {
         return Collections.unmodifiableSet(supportedFlash);
     }
 
@@ -443,7 +232,7 @@ public class CameraOptions {
      * @return a collection of supported values.
      */
     @NonNull
-    public Collection<WhiteBalance> getSupportedWhiteBalance() {
+    public final Collection<WhiteBalance> getSupportedWhiteBalance() {
         return Collections.unmodifiableSet(supportedWhiteBalance);
     }
 
@@ -454,10 +243,33 @@ public class CameraOptions {
      * @see Hdr#ON
      * @return a collection of supported values.
      */
-    @SuppressWarnings("WeakerAccess")
     @NonNull
-    public Collection<Hdr> getSupportedHdr() {
+    public final Collection<Hdr> getSupportedHdr() {
         return Collections.unmodifiableSet(supportedHdr);
+    }
+
+    /**
+     * Set of supported picture formats.
+     *
+     * @see PictureFormat#JPEG
+     * @see PictureFormat#DNG
+     * @return a collection of supported values.
+     */
+    @NonNull
+    public final Collection<PictureFormat> getSupportedPictureFormats() {
+        return Collections.unmodifiableSet(supportedPictureFormats);
+    }
+
+    /**
+     * Set of supported formats for frame processing,
+     * as {@link ImageFormat} constants.
+     *
+     * @see CameraView#setFrameProcessingFormat(int)
+     * @return a collection of supported values.
+     */
+    @NonNull
+    public final Collection<Integer> getSupportedFrameProcessingFormats() {
+        return Collections.unmodifiableSet(supportedFrameProcessingFormats);
     }
 
     /**
@@ -466,7 +278,7 @@ public class CameraOptions {
      *
      * @return whether zoom is supported.
      */
-    public boolean isZoomSupported() {
+    public final boolean isZoomSupported() {
         return zoomSupported;
     }
 
@@ -478,7 +290,7 @@ public class CameraOptions {
      *
      * @return whether auto focus is supported.
      */
-    public boolean isAutoFocusSupported() {
+    public final boolean isAutoFocusSupported() {
         return autoFocusSupported;
     }
 
@@ -490,7 +302,7 @@ public class CameraOptions {
      * @see #getExposureCorrectionMaxValue()
      * @return whether exposure correction is supported.
      */
-    public boolean isExposureCorrectionSupported() {
+    public final boolean isExposureCorrectionSupported() {
         return exposureCorrectionSupported;
     }
 
@@ -500,7 +312,7 @@ public class CameraOptions {
      *
      * @return min EV value
      */
-    public float getExposureCorrectionMinValue() {
+    public final float getExposureCorrectionMinValue() {
         return exposureCorrectionMinValue;
     }
 
@@ -511,7 +323,7 @@ public class CameraOptions {
      *
      * @return max EV value
      */
-    public float getExposureCorrectionMaxValue() {
+    public final float getExposureCorrectionMaxValue() {
         return exposureCorrectionMaxValue;
     }
 
@@ -520,7 +332,7 @@ public class CameraOptions {
      *
      * @return the min value
      */
-    public float getPreviewFrameRateMinValue() {
+    public final float getPreviewFrameRateMinValue() {
         return previewFrameRateMinValue;
     }
 
@@ -529,7 +341,7 @@ public class CameraOptions {
      *
      * @return the max value
      */
-    public float getPreviewFrameRateMaxValue() {
+    public final float getPreviewFrameRateMaxValue() {
         return previewFrameRateMaxValue;
     }
 }

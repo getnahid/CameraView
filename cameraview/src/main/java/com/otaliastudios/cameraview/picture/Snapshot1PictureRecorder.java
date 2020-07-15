@@ -1,18 +1,15 @@
 package com.otaliastudios.cameraview.picture;
 
-import android.graphics.ImageFormat;
 import android.graphics.Rect;
 import android.graphics.YuvImage;
 import android.hardware.Camera;
 
-import com.otaliastudios.cameraview.CameraLogger;
 import com.otaliastudios.cameraview.PictureResult;
 import com.otaliastudios.cameraview.engine.Camera1Engine;
-import com.otaliastudios.cameraview.engine.CameraEngine;
 import com.otaliastudios.cameraview.engine.offset.Reference;
-import com.otaliastudios.cameraview.internal.utils.CropHelper;
-import com.otaliastudios.cameraview.internal.utils.RotationHelper;
-import com.otaliastudios.cameraview.internal.utils.WorkerHandler;
+import com.otaliastudios.cameraview.internal.CropHelper;
+import com.otaliastudios.cameraview.internal.RotationHelper;
+import com.otaliastudios.cameraview.internal.WorkerHandler;
 import com.otaliastudios.cameraview.size.AspectRatio;
 import com.otaliastudios.cameraview.size.Size;
 
@@ -23,11 +20,7 @@ import java.io.ByteArrayOutputStream;
 /**
  * A {@link PictureRecorder} that uses standard APIs.
  */
-public class Snapshot1PictureRecorder extends PictureRecorder {
-
-    private static final String TAG = Snapshot1PictureRecorder.class.getSimpleName();
-    @SuppressWarnings("unused")
-    private static final CameraLogger LOG = CameraLogger.create(TAG);
+public class Snapshot1PictureRecorder extends SnapshotPictureRecorder {
 
     private Camera1Engine mEngine1;
     private Camera mCamera;
@@ -81,7 +74,6 @@ public class Snapshot1PictureRecorder extends PictureRecorder {
                         mResult.data = data;
                         mResult.size = new Size(outputRect.width(), outputRect.height());
                         mResult.rotation = 0;
-                        mResult.format = PictureResult.FORMAT_JPEG;
                         dispatchResult();
                     }
                 });
@@ -89,7 +81,7 @@ public class Snapshot1PictureRecorder extends PictureRecorder {
                 // It seems that the buffers are already cleared here, so we need to allocate again.
                 camera.setPreviewCallbackWithBuffer(null); // Release anything left
                 camera.setPreviewCallbackWithBuffer(mEngine1); // Add ourselves
-                mEngine1.getFrameManager().setUp(mFormat, previewStreamSize);
+                mEngine1.getFrameManager().setUp(mFormat, previewStreamSize, mEngine1.getAngles());
             }
         });
     }

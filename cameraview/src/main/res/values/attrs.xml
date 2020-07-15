@@ -25,9 +25,16 @@
         <attr name="cameraSnapshotMaxWidth" format="integer|reference" />
         <attr name="cameraSnapshotMaxHeight" format="integer|reference" />
 
+        <attr name="cameraFrameProcessingMaxWidth" format="integer|reference" />
+        <attr name="cameraFrameProcessingMaxHeight" format="integer|reference" />
+        <attr name="cameraFrameProcessingFormat" format="integer|reference" />
+        <attr name="cameraFrameProcessingPoolSize" format="integer|reference" />
+        <attr name="cameraFrameProcessingExecutors" format="integer|reference" />
+
         <attr name="cameraVideoBitRate" format="integer|reference" />
         <attr name="cameraAudioBitRate" format="integer|reference" />
         <attr name="cameraPreviewFrameRate" format="integer|reference" />
+        <attr name="cameraPreviewFrameRateExact" format="boolean" />
 
         <attr name="cameraGestureTap" format="enum">
             <enum name="none" value="0" />
@@ -145,7 +152,13 @@
         <attr name="cameraPictureMetering" format="boolean|reference"/>
         <attr name="cameraPictureSnapshotMetering" format="boolean|reference"/>
 
-        <attr name="cameraExperimental" format="boolean" />
+        <attr name="cameraPictureFormat" format="enum">
+            <enum name="jpeg" value="0" />
+            <enum name="dng" value="1" />
+        </attr>
+
+        <attr name="cameraRequestPermissions" format="boolean|reference"/>
+        <attr name="cameraExperimental" format="boolean|reference" />
 
     </declare-styleable>
 

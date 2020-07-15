@@ -1,9 +1,13 @@
 package com.otaliastudios.cameraview.internal;
 
 import android.annotation.SuppressLint;
+import android.media.AudioFormat;
+import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaCodecList;
+import android.media.MediaFormat;
 import android.os.Build;
+import android.util.Range;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -49,8 +53,9 @@ import java.util.List;
  * - MediaCodecList (https://android.googlesource.com/platform/frameworks/av/+/master/media/libstagefright/MediaCodecList.cpp#322)
  *
  * To be fair, what {@link android.media.MediaRecorder} does is actually choose the first one
- * that configures itself without errors. We currently do not offer this option here.
- * TODO add a tryConfigure() step, that throws AudioException/VideoException ?
+ * that configures itself without errors. We offer this option through
+ * {@link #tryConfigureVideo(String, Size, int, int)} and
+ * {@link #tryConfigureAudio(String, int, int, int)}.
  *
  * 2. {@link #MODE_PREFER_HARDWARE}
  *
@@ -64,7 +69,7 @@ public class DeviceEncoders {
     private final static String TAG = DeviceEncoders.class.getSimpleName();
     private final static CameraLogger LOG = CameraLogger.create(TAG);
 
-    @VisibleForTesting static boolean ENABLED = Build.VERSION.SDK_INT >= 21;
+    @VisibleForTesting static boolean ENABLED = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N;//Build.VERSION.SDK_INT >= 21;
 
     public final static int MODE_RESPECT_ORDER = 0;
     public final static int MODE_PREFER_HARDWARE = 1;
@@ -92,9 +97,9 @@ public class DeviceEncoders {
     @SuppressWarnings("FieldCanBeLocal")
     private final MediaCodecInfo mVideoEncoder;
     @SuppressWarnings("FieldCanBeLocal")
-    private final MediaCodecInfo mAudioEncoder;
-    private final MediaCodecInfo.VideoCapabilities mVideoCapabilities;
-    private final MediaCodecInfo.AudioCapabilities mAudioCapabilities;
+    private MediaCodecInfo mAudioEncoder;
+    private MediaCodecInfo.VideoCapabilities mVideoCapabilities;
+    private MediaCodecInfo.AudioCapabilities mAudioCapabilities;
 
     @SuppressLint("NewApi")
     public DeviceEncoders(int mode,
@@ -107,13 +112,15 @@ public class DeviceEncoders {
         if (ENABLED) {
             List<MediaCodecInfo> encoders = getDeviceEncoders();
             mVideoEncoder = findDeviceEncoder(encoders, videoType, mode, videoOffset);
-            LOG.i("Enabled. Found video encoder:", mVideoEncoder.getName());
-            mAudioEncoder = findDeviceEncoder(encoders, audioType, mode, audioOffset);
-            LOG.i("Enabled. Found audio encoder:", mAudioEncoder.getName());
-            mVideoCapabilities = mVideoEncoder.getCapabilitiesForType(videoType)
-                    .getVideoCapabilities();
-            mAudioCapabilities = mAudioEncoder.getCapabilitiesForType(audioType)
-                    .getAudioCapabilities();
+            if(mVideoEncoder != null){
+                LOG.i("Enabled. Found video encoder:", mVideoEncoder.getName());
+                mAudioEncoder = findDeviceEncoder(encoders, audioType, mode, audioOffset);
+                LOG.i("Enabled. Found audio encoder:", mAudioEncoder.getName());
+                mVideoCapabilities = mVideoEncoder.getCapabilitiesForType(videoType)
+                        .getVideoCapabilities();
+                mAudioCapabilities = mAudioEncoder.getCapabilitiesForType(audioType)
+                        .getAudioCapabilities();
+            }
         } else {
             mVideoEncoder = null;
             mAudioEncoder = null;
@@ -169,7 +176,6 @@ public class DeviceEncoders {
      * @return encoder
      */
     @SuppressLint("NewApi")
-    @NonNull
     @VisibleForTesting
     MediaCodecInfo findDeviceEncoder(@NonNull List<MediaCodecInfo> encoders,
                                      @NonNull String mimeType,
@@ -192,17 +198,17 @@ public class DeviceEncoders {
                 public int compare(MediaCodecInfo o1, MediaCodecInfo o2) {
                     boolean hw1 = isHardwareEncoder(o1.getName());
                     boolean hw2 = isHardwareEncoder(o2.getName());
-                    if (hw1 && hw2) return 0;
-                    if (hw1) return -1;
-                    if (hw2) return 1;
-                    return 0;
+                    return Boolean.compare(hw2, hw1);
                 }
             });
         }
+
         if (results.size() < offset + 1) {
             // This should not be a VideoException or AudioException - we want the process
             // to crash here.
-            throw new RuntimeException("No encoders for type:" + mimeType);
+            //throw new RuntimeException("No encoders for type:" + mimeType);
+            ENABLED = false;
+            return null;
         }
         return results.get(offset);
     }
@@ -255,6 +261,28 @@ public class DeviceEncoders {
                     " Desired:" + height +
                     " Range:" + mVideoCapabilities.getSupportedHeights());
         }
+
+        // We cannot change the aspect ratio, but the max block count might also be the
+        // issue. Try to find a width that contains a height that would accept our AR.
+        try {
+            if (!mVideoCapabilities.getSupportedHeightsFor(width).contains(height)) {
+                int candidateWidth = width;
+                int minWidth = mVideoCapabilities.getSupportedWidths().getLower();
+                int widthAlignment = mVideoCapabilities.getWidthAlignment();
+                while (candidateWidth >= minWidth) {
+                    // Reduce by 32 and realign just in case, then check if our AR is now
+                    // supported. If it is, restart from scratch to go through the other checks.
+                    candidateWidth -= 32;
+                    while (candidateWidth % widthAlignment != 0) candidateWidth--;
+                    int candidateHeight = (int) Math.round(candidateWidth / aspect);
+                    if (mVideoCapabilities.getSupportedHeightsFor(candidateWidth)
+                            .contains(candidateHeight)) {
+                        LOG.w("getSupportedVideoSize - restarting with smaller size.");
+                        return getSupportedVideoSize(new Size(candidateWidth, candidateHeight));
+                    }
+                }
+            }
+        } catch (IllegalArgumentException ignore) {}
 
         // It's still possible that we're unsupported for other reasons.
         if (!mVideoCapabilities.isSizeSupported(width, height)) {
@@ -347,6 +375,66 @@ public class DeviceEncoders {
             return mAudioEncoder.getName();
         } else {
             return null;
+        }
+    }
+
+    @SuppressLint("NewApi")
+    public void tryConfigureVideo(@NonNull String mimeType,
+                                  @NonNull Size size,
+                                  int frameRate,
+                                  int bitRate) {
+        if (mVideoEncoder != null) {
+            MediaCodec codec = null;
+            try {
+                MediaFormat format = MediaFormat.createVideoFormat(mimeType, size.getWidth(),
+                        size.getHeight());
+                format.setInteger(MediaFormat.KEY_COLOR_FORMAT,
+                        MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
+                format.setInteger(MediaFormat.KEY_BIT_RATE, bitRate);
+                format.setInteger(MediaFormat.KEY_FRAME_RATE, frameRate);
+                format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1);
+                codec = MediaCodec.createByCodecName(mVideoEncoder.getName());
+                codec.configure(format, null, null,
+                        MediaCodec.CONFIGURE_FLAG_ENCODE);
+            } catch (Exception e) {
+                throw new VideoException("Failed to configure video codec: " + e.getMessage());
+            } finally {
+                if (codec != null) {
+                    try {
+                        codec.release();
+                    } catch (Exception ignore) {}
+                }
+            }
+        }
+    }
+
+    @SuppressLint("NewApi")
+    public void tryConfigureAudio(@NonNull String mimeType,
+                                  int bitRate,
+                                  int sampleRate,
+                                  int channels) {
+        if (mAudioEncoder != null) {
+            MediaCodec codec = null;
+            try {
+                final MediaFormat format = MediaFormat.createAudioFormat(mimeType, sampleRate,
+                        channels);
+                int channelMask = channels == 2 ? AudioFormat.CHANNEL_IN_STEREO
+                        : AudioFormat.CHANNEL_IN_MONO;
+                format.setInteger(MediaFormat.KEY_CHANNEL_MASK, channelMask);
+                format.setInteger(MediaFormat.KEY_BIT_RATE, bitRate);
+
+                codec = MediaCodec.createByCodecName(mAudioEncoder.getName());
+                codec.configure(format, null, null,
+                        MediaCodec.CONFIGURE_FLAG_ENCODE);
+            } catch (Exception e) {
+                throw new AudioException("Failed to configure video audio: " + e.getMessage());
+            } finally {
+                if (codec != null) {
+                    try {
+                        codec.release();
+                    } catch (Exception ignore) {}
+                }
+            }
         }
     }
 
