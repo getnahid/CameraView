@@ -3,9 +3,12 @@ package com.otaliastudios.cameraview;
 
 import android.content.Context;
 import android.content.res.TypedArray;
+import android.graphics.ImageFormat;
 import android.graphics.PointF;
+import android.graphics.RectF;
 import android.location.Location;
 import androidx.annotation.NonNull;
+import androidx.test.annotation.UiThreadTest;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.MediumTest;
 
@@ -16,6 +19,7 @@ import android.view.View;
 import android.view.ViewGroup;
 
 import com.otaliastudios.cameraview.controls.Audio;
+import com.otaliastudios.cameraview.controls.AudioCodec;
 import com.otaliastudios.cameraview.controls.ControlParser;
 import com.otaliastudios.cameraview.controls.Engine;
 import com.otaliastudios.cameraview.controls.Facing;
@@ -23,9 +27,9 @@ import com.otaliastudios.cameraview.controls.Flash;
 import com.otaliastudios.cameraview.controls.PictureFormat;
 import com.otaliastudios.cameraview.controls.Preview;
 import com.otaliastudios.cameraview.engine.CameraEngine;
+import com.otaliastudios.cameraview.engine.orchestrator.CameraState;
 import com.otaliastudios.cameraview.filter.Filter;
 import com.otaliastudios.cameraview.filter.Filters;
-import com.otaliastudios.cameraview.filter.NoFilter;
 import com.otaliastudios.cameraview.filters.DuotoneFilter;
 import com.otaliastudios.cameraview.frame.Frame;
 import com.otaliastudios.cameraview.frame.FrameProcessor;
@@ -41,7 +45,7 @@ import com.otaliastudios.cameraview.gesture.PinchGestureFinder;
 import com.otaliastudios.cameraview.gesture.ScrollGestureFinder;
 import com.otaliastudios.cameraview.gesture.TapGestureFinder;
 import com.otaliastudios.cameraview.engine.MockCameraEngine;
-import com.otaliastudios.cameraview.internal.utils.Op;
+import com.otaliastudios.cameraview.tools.Op;
 import com.otaliastudios.cameraview.markers.AutoFocusMarker;
 import com.otaliastudios.cameraview.markers.DefaultAutoFocusMarker;
 import com.otaliastudios.cameraview.markers.MarkerLayout;
@@ -128,14 +132,14 @@ public class CameraViewTest extends BaseTest {
     public void testClose() {
         cameraView.close();
         verify(mockPreview, times(1)).onPause();
-        verify(mockController, times(1)).stop();
+        verify(mockController, times(1)).stop(false);
     }
 
     @Test
     public void testDestroy() {
         cameraView.destroy();
         verify(mockPreview, times(1)).onDestroy();
-        verify(mockController, times(1)).destroy();
+        verify(mockController, times(1)).destroy(true);
     }
 
     //region testDefaults
@@ -162,13 +166,20 @@ public class CameraViewTest extends BaseTest {
         assertEquals(cameraView.getHdr(), controls.getHdr());
         assertEquals(cameraView.getAudio(), controls.getAudio());
         assertEquals(cameraView.getVideoCodec(), controls.getVideoCodec());
+        assertEquals(cameraView.getAudioCodec(), controls.getAudioCodec());
         assertEquals(cameraView.getPictureFormat(), controls.getPictureFormat());
         //noinspection SimplifiableJUnitAssertion
         assertEquals(cameraView.getLocation(), null);
         assertEquals(cameraView.getExposureCorrection(), 0f, 0f);
         assertEquals(cameraView.getZoom(), 0f, 0f);
-        assertEquals(cameraView.getVideoMaxDuration(), 0, 0);
-        assertEquals(cameraView.getVideoMaxSize(), 0, 0);
+        assertEquals(cameraView.getVideoMaxDuration(), 0);
+        assertEquals(cameraView.getVideoMaxSize(), 0);
+        assertEquals(cameraView.getSnapshotMaxWidth(), 0);
+        assertEquals(cameraView.getSnapshotMaxHeight(), 0);
+        assertEquals(cameraView.getFrameProcessingMaxWidth(), 0);
+        assertEquals(cameraView.getFrameProcessingMaxHeight(), 0);
+        assertEquals(cameraView.getFrameProcessingFormat(), 0);
+        assertFalse(cameraView.getPreviewFrameRateExact());
 
         // Self managed
         GestureParser gestures = new GestureParser(empty);
@@ -177,6 +188,7 @@ public class CameraViewTest extends BaseTest {
         assertEquals(cameraView.getUseDeviceOrientation(), CameraView.DEFAULT_USE_DEVICE_ORIENTATION);
         assertEquals(cameraView.getPictureMetering(), CameraView.DEFAULT_PICTURE_METERING);
         assertEquals(cameraView.getPictureSnapshotMetering(), CameraView.DEFAULT_PICTURE_SNAPSHOT_METERING);
+        assertEquals(cameraView.getFrameProcessingPoolSize(), CameraView.DEFAULT_FRAME_PROCESSING_POOL_SIZE);
         assertEquals(cameraView.getGestureAction(Gesture.TAP), gestures.getTapAction());
         assertEquals(cameraView.getGestureAction(Gesture.LONG_TAP), gestures.getLongTapAction());
         assertEquals(cameraView.getGestureAction(Gesture.PINCH), gestures.getPinchAction());
@@ -239,7 +251,7 @@ public class CameraViewTest extends BaseTest {
     public void testGestureAction_capture() {
         CameraOptions o = mock(CameraOptions.class);
         mockController.setMockCameraOptions(o);
-        mockController.setMockEngineState(true);
+        mockController.setMockState(CameraState.PREVIEW);
         MotionEvent event = MotionEvent.obtain(0L, 0L, 0, 0f, 0f, 0);
         uiSync(new Runnable() {
             @Override
@@ -261,7 +273,7 @@ public class CameraViewTest extends BaseTest {
     public void testGestureAction_focus() {
         CameraOptions o = mock(CameraOptions.class);
         mockController.setMockCameraOptions(o);
-        mockController.setMockEngineState(true);
+        mockController.setMockState(CameraState.PREVIEW);
         MotionEvent event = MotionEvent.obtain(0L, 0L, 0, 0f, 0f, 0);
         uiSync(new Runnable() {
             @Override
@@ -286,7 +298,7 @@ public class CameraViewTest extends BaseTest {
     public void testGestureAction_zoom() {
         CameraOptions o = mock(CameraOptions.class);
         mockController.setMockCameraOptions(o);
-        mockController.setMockEngineState(true);
+        mockController.setMockState(CameraState.PREVIEW);
         mockController.mZoomChanged = false;
         MotionEvent event = MotionEvent.obtain(0L, 0L, 0, 0f, 0f, 0);
         final FactorHolder factor = new FactorHolder();
@@ -327,7 +339,7 @@ public class CameraViewTest extends BaseTest {
         o.exposureCorrectionMaxValue = 10F;
         o.exposureCorrectionMinValue = -10F;
         mockController.setMockCameraOptions(o);
-        mockController.setMockEngineState(true);
+        mockController.setMockState(CameraState.PREVIEW);
         mockController.mExposureCorrectionChanged = false;
         MotionEvent event = MotionEvent.obtain(0L, 0L, 0, 0f, 0f, 0);
         final FactorHolder factor = new FactorHolder();
@@ -363,7 +375,7 @@ public class CameraViewTest extends BaseTest {
 
     @Test
     public void testGestureAction_filterControl1() {
-        mockController.setMockEngineState(true);
+        mockController.setMockState(CameraState.PREVIEW);
         mockController.setMockCameraOptions(mock(CameraOptions.class));
         DuotoneFilter filter = new DuotoneFilter(); // supports two parameters
         filter.setParameter1(0F);
@@ -405,7 +417,7 @@ public class CameraViewTest extends BaseTest {
 
     @Test
     public void testGestureAction_filterControl2() {
-        mockController.setMockEngineState(true);
+        mockController.setMockState(CameraState.PREVIEW);
         mockController.setMockCameraOptions(mock(CameraOptions.class));
         DuotoneFilter filter = new DuotoneFilter(); // supports two parameters
         filter.setParameter2(0F);
@@ -624,6 +636,20 @@ public class CameraViewTest extends BaseTest {
         cameraView.startAutoFocus(200, 200);
     }
 
+    @Test(expected = IllegalArgumentException.class)
+    public void testStartAutoFocus_illegal3() {
+        cameraView.startAutoFocus(new RectF(-1, -1, 1, 1));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testStartAutoFocus_illegal4() {
+        cameraView.setLeft(0);
+        cameraView.setRight(100);
+        cameraView.setTop(0);
+        cameraView.setBottom(100);
+        cameraView.startAutoFocus(new RectF(-100, -100, 200, 200));
+    }
+
     @Test
     public void testStartAutoFocus() {
         cameraView.setLeft(0);
@@ -631,6 +657,16 @@ public class CameraViewTest extends BaseTest {
         cameraView.setTop(0);
         cameraView.setBottom(100);
         cameraView.startAutoFocus(50, 50);
+        assertTrue(mockController.mFocusStarted);
+    }
+
+    @Test
+    public void testStartAutoFocusRect() {
+        cameraView.setLeft(0);
+        cameraView.setRight(100);
+        cameraView.setTop(0);
+        cameraView.setBottom(100);
+        cameraView.startAutoFocus(new RectF(25, 25, 75, 75));
         assertTrue(mockController.mFocusStarted);
     }
 
@@ -740,6 +776,19 @@ public class CameraViewTest extends BaseTest {
     }
 
     @Test
+    public void testAudioCodec() {
+        cameraView.set(AudioCodec.DEVICE_DEFAULT);
+        assertEquals(cameraView.get(AudioCodec.class), AudioCodec.DEVICE_DEFAULT);
+        cameraView.set(AudioCodec.AAC);
+        assertEquals(cameraView.get(AudioCodec.class), AudioCodec.AAC);
+        cameraView.set(AudioCodec.HE_AAC);
+        assertEquals(cameraView.get(AudioCodec.class), AudioCodec.HE_AAC);
+        cameraView.set(AudioCodec.AAC_ELD);
+        assertEquals(cameraView.get(AudioCodec.class), AudioCodec.AAC_ELD);
+    }
+
+
+    @Test
     public void testVideoCodec() {
         cameraView.set(VideoCodec.H_263);
         assertEquals(cameraView.get(VideoCodec.class), VideoCodec.H_263);
@@ -798,6 +847,59 @@ public class CameraViewTest extends BaseTest {
     public void testPreviewFrameRate() {
         cameraView.setPreviewFrameRate(60);
         assertEquals(cameraView.getPreviewFrameRate(), 60, 0);
+    }
+
+    @Test
+    public void testPreviewFrameRateExact() {
+        cameraView.setPreviewFrameRateExact(true);
+        assertTrue(cameraView.getPreviewFrameRateExact());
+        cameraView.setPreviewFrameRateExact(false);
+        assertFalse(cameraView.getPreviewFrameRateExact());
+    }
+
+    @Test
+    public void testSnapshotMaxSize() {
+        cameraView.setSnapshotMaxWidth(500);
+        assertEquals(500, cameraView.getSnapshotMaxWidth());
+        cameraView.setSnapshotMaxHeight(700);
+        assertEquals(700, cameraView.getSnapshotMaxHeight());
+    }
+
+    @Test
+    public void testFrameProcessingMaxSize() {
+        cameraView.setFrameProcessingMaxWidth(500);
+        assertEquals(500, cameraView.getFrameProcessingMaxWidth());
+        cameraView.setFrameProcessingMaxHeight(700);
+        assertEquals(700, cameraView.getFrameProcessingMaxHeight());
+    }
+
+    @Test
+    public void testFrameProcessingFormat() {
+        cameraView.setFrameProcessingFormat(ImageFormat.YUV_420_888);
+        assertEquals(ImageFormat.YUV_420_888, cameraView.getFrameProcessingFormat());
+        cameraView.setFrameProcessingFormat(ImageFormat.YUV_422_888);
+        assertEquals(ImageFormat.YUV_422_888, cameraView.getFrameProcessingFormat());
+    }
+
+    @Test
+    public void testFrameProcessingPoolSize() {
+        cameraView.setFrameProcessingPoolSize(4);
+        assertEquals(4, cameraView.getFrameProcessingPoolSize());
+        cameraView.setFrameProcessingPoolSize(6);
+        assertEquals(6, cameraView.getFrameProcessingPoolSize());
+    }
+
+    @Test
+    public void testFrameProcessingExecutors() {
+        cameraView.setFrameProcessingExecutors(5);
+        assertEquals(5, cameraView.getFrameProcessingExecutors());
+        cameraView.setFrameProcessingExecutors(2);
+        assertEquals(2, cameraView.getFrameProcessingExecutors());
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void testFrameProcessingExecutors_throws() {
+        cameraView.setFrameProcessingExecutors(0);
     }
 
     //endregion
@@ -891,7 +993,7 @@ public class CameraViewTest extends BaseTest {
         cameraView.mMarkerLayout = markerLayout;
         final PointF point = new PointF(0, 0);
         final PointF[] points = new PointF[]{ point };
-        final Op<Boolean> op = new Op<>(true);
+        final Op<Boolean> op = new Op<>();
         doEndOp(op, true).when(markerLayout).onEvent(MarkerLayout.TYPE_AUTOFOCUS, points);
         cameraView.mCameraCallbacks.dispatchOnFocusStart(Gesture.TAP, point);
         assertNotNull(op.await(100));
@@ -974,26 +1076,11 @@ public class CameraViewTest extends BaseTest {
     }
 
     //endregion
-    // TODO: test permissions
 
     //region Filter
 
-    @Test(expected = RuntimeException.class)
-    public void testSetFilter_notExperimental() {
-        cameraView.setExperimental(false);
-        cameraView.setFilter(Filters.AUTO_FIX.newInstance());
-    }
-
-    @Test
-    public void testSetFilter_notExperimental_noFilter() {
-        cameraView.setExperimental(false);
-        cameraView.setFilter(Filters.NONE.newInstance());
-        // no exception thrown
-    }
-
     @Test
     public void testSetFilter() {
-        cameraView.setExperimental(true);
         Filter filter = Filters.AUTO_FIX.newInstance();
         cameraView.setFilter(filter);
         verify(mockPreview, times(1)).setFilter(filter);
@@ -1001,4 +1088,6 @@ public class CameraViewTest extends BaseTest {
         //noinspection ResultOfMethodCallIgnored
         verify(mockPreview, times(1)).getCurrentFilter();
     }
+
+    //endregion
 }

@@ -1,13 +1,16 @@
 package com.otaliastudios.cameraview.engine.options;
 
 
+import android.graphics.ImageFormat;
 import android.hardware.Camera;
 
 import com.otaliastudios.cameraview.BaseTest;
 import com.otaliastudios.cameraview.CameraOptions;
 import com.otaliastudios.cameraview.controls.Audio;
+import com.otaliastudios.cameraview.controls.AudioCodec;
 import com.otaliastudios.cameraview.controls.Facing;
 import com.otaliastudios.cameraview.controls.Flash;
+import com.otaliastudios.cameraview.controls.PictureFormat;
 import com.otaliastudios.cameraview.engine.mappers.Camera1Mapper;
 import com.otaliastudios.cameraview.gesture.GestureAction;
 import com.otaliastudios.cameraview.controls.Grid;
@@ -54,6 +57,11 @@ public class Camera1OptionsTest extends BaseTest {
         assertFalse(o.isZoomSupported());
         assertEquals(o.getExposureCorrectionMaxValue(), 0f, 0);
         assertEquals(o.getExposureCorrectionMinValue(), 0f, 0);
+        // Static
+        assertEquals(1, o.getSupportedPictureFormats().size());
+        assertTrue(o.getSupportedPictureFormats().contains(PictureFormat.JPEG));
+        assertEquals(1, o.getSupportedFrameProcessingFormats().size());
+        assertTrue(o.getSupportedFrameProcessingFormats().contains(ImageFormat.NV21));
     }
 
     private Camera.Size mockCameraSize(int width, int height) {
@@ -237,10 +245,12 @@ public class Camera1OptionsTest extends BaseTest {
 
         Collection<Grid> grids = o.getSupportedControls(Grid.class);
         Collection<VideoCodec> video = o.getSupportedControls(VideoCodec.class);
+        Collection<AudioCodec> audioCodecs = o.getSupportedControls(AudioCodec.class);
         Collection<Mode> sessions = o.getSupportedControls(Mode.class);
         Collection<Audio> audio = o.getSupportedControls(Audio.class);
         assertEquals(grids.size(), Grid.values().length);
         assertEquals(video.size(), VideoCodec.values().length);
+        assertEquals(audioCodecs.size(), AudioCodec.values().length);
         assertEquals(sessions.size(), Mode.values().length);
         assertEquals(audio.size(), Audio.values().length);
     }

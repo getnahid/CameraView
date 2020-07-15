@@ -8,6 +8,7 @@ import android.os.Build;
 import androidx.annotation.NonNull;
 
 import com.otaliastudios.cameraview.controls.Audio;
+import com.otaliastudios.cameraview.controls.AudioCodec;
 import com.otaliastudios.cameraview.controls.Control;
 import com.otaliastudios.cameraview.controls.Engine;
 import com.otaliastudios.cameraview.controls.Facing;
@@ -116,6 +117,8 @@ public abstract class CameraOptions {
             return (Collection<T>) Arrays.asList(Mode.values());
         } else if (controlClass.equals(VideoCodec.class)) {
             return (Collection<T>) Arrays.asList(VideoCodec.values());
+        } else if (controlClass.equals(AudioCodec.class)) {
+            return (Collection<T>) Arrays.asList(AudioCodec.values());
         } else if (controlClass.equals(WhiteBalance.class)) {
             return (Collection<T>) getSupportedWhiteBalance();
         } else if (controlClass.equals(Engine.class)) {

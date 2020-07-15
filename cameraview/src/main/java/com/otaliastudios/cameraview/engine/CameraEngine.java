@@ -3,6 +3,8 @@ package com.otaliastudios.cameraview.engine;
 import android.content.Context;
 import android.graphics.PointF;
 import android.location.Location;
+
+
 import android.os.Handler;
 import android.os.Looper;
 
@@ -20,7 +22,21 @@ import com.otaliastudios.cameraview.CameraLogger;
 import com.otaliastudios.cameraview.CameraOptions;
 import com.otaliastudios.cameraview.CameraViewParent;
 import com.otaliastudios.cameraview.PictureResult;
+import com.otaliastudios.cameraview.controls.AudioCodec;
+import com.otaliastudios.cameraview.controls.PictureFormat;
+import com.otaliastudios.cameraview.engine.orchestrator.CameraOrchestrator;
+import com.otaliastudios.cameraview.engine.orchestrator.CameraState;
+import com.otaliastudios.cameraview.engine.orchestrator.CameraStateOrchestrator;
+import com.otaliastudios.cameraview.metering.MeteringRegions;
+import com.otaliastudios.cameraview.overlay.Overlay;
 import com.otaliastudios.cameraview.VideoResult;
+import com.otaliastudios.cameraview.engine.offset.Angles;
+import com.otaliastudios.cameraview.engine.offset.Reference;
+import com.otaliastudios.cameraview.frame.Frame;
+import com.otaliastudios.cameraview.frame.FrameManager;
+import com.otaliastudios.cameraview.internal.WorkerHandler;
+import com.otaliastudios.cameraview.picture.PictureRecorder;
+import com.otaliastudios.cameraview.preview.CameraPreview;
 import com.otaliastudios.cameraview.controls.Audio;
 import com.otaliastudios.cameraview.controls.Facing;
 import com.otaliastudios.cameraview.controls.Flash;
@@ -46,6 +62,10 @@ import com.otaliastudios.cameraview.size.Size;
 import com.otaliastudios.cameraview.size.SizeSelector;
 import com.otaliastudios.cameraview.video.VideoRecorder;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
+
 import java.io.File;
 import java.io.FileDescriptor;
 import java.util.concurrent.Callable;
@@ -60,7 +80,7 @@ import java.util.concurrent.TimeUnit;
  * 2. Starting the camera. Done by us. See {@link #startEngine()}, {@link #onStartEngine()}.
  * 3. Binding the camera to the surface. Done by us. See {@link #startBind()},
  *    {@link #onStartBind()}
- * 4. Streaming the camera preview. Done by us. See {@link #startPreview(boolean)},
+ * 4. Streaming the camera preview. Done by us. See {@link #startPreview()},
  *    {@link #onStartPreview()}
  *
  * The first two steps can actually happen at the same time, anyway
@@ -163,6 +183,7 @@ public abstract class CameraEngine implements
     @NonNull
     protected final Callback getCallback() {
         return mCallback;
+        recreateHandler(false);
     }
 
     @NonNull
@@ -312,8 +333,7 @@ public abstract class CameraEngine implements
                     }
                 });
         try {
-            //boolean success = latch.await(6, TimeUnit.SECONDS);
-            boolean success = latch.await(1, TimeUnit.SECONDS);
+            boolean success = latch.await(2, TimeUnit.SECONDS);
             if (!success) {
                 // This thread is likely stuck. The reason might be deadlock issues in the internal
                 // camera implementation, at least in emulators: see Camera1Engine and Camera2Engine
@@ -525,6 +545,7 @@ public abstract class CameraEngine implements
     //endregion
 
     //region Start & Stop preview
+
     @NonNull
     @EngineThread
     public Task<Void> startPreview(final boolean isSurfaceAvailable) {
@@ -595,6 +616,11 @@ public abstract class CameraEngine implements
     public final void onSurfaceAvailable() {
         LOG.i("onSurfaceAvailable:", "Size is", getPreview().getSurfaceSize());
         startBind();
+        startPreview();
+    }
+
+        LOG.i("onSurfaceAvailable:", "Size is", getPreview().getSurfaceSize());
+        startBind();
         startPreview(true);
     }
 
@@ -663,6 +689,9 @@ public abstract class CameraEngine implements
 
     public abstract void setAudioBitRate(int audioBitRate);
     public abstract int getAudioBitRate();
+
+    public abstract void setAudioCodec(@NonNull AudioCodec codec);
+    @NonNull public abstract AudioCodec getAudioCodec();
 
     public abstract void setSnapshotMaxWidth(int maxWidth);
     public abstract int getSnapshotMaxWidth();
@@ -750,6 +779,5 @@ public abstract class CameraEngine implements
     public void setCameraParentListener(CameraViewParent.CameraParentCallback cameraParentCallback) {
         this.cameraParentCallback = cameraParentCallback;
     }
-
     //endregion
 }

@@ -10,8 +10,9 @@ import android.os.PowerManager;
 
 import androidx.annotation.NonNull;
 import androidx.test.platform.app.InstrumentationRegistry;
+import androidx.test.rule.GrantPermissionRule;
 
-import com.otaliastudios.cameraview.internal.utils.Op;
+import com.otaliastudios.cameraview.tools.Op;
 
 import org.junit.After;
 import org.junit.AfterClass;
@@ -89,21 +90,8 @@ public class BaseTest {
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
     }
 
-    protected static void grantAllPermissions() {
-        grantPermission("android.permission.CAMERA");
-        grantPermission("android.permission.RECORD_AUDIO");
-        grantPermission("android.permission.WRITE_EXTERNAL_STORAGE");
-    }
-
-    @SuppressWarnings("WeakerAccess")
-    protected static void grantPermission(@NonNull String permission) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
-        String command = "pm grant " + getContext().getPackageName() + " " + permission;
-        InstrumentationRegistry.getInstrumentation().getUiAutomation().executeShellCommand(command);
-    }
-
     @NonNull
-    protected static Stubber doCountDown(final CountDownLatch latch) {
+    protected static Stubber doCountDown(@NonNull final CountDownLatch latch) {
         return doAnswer(new Answer<Object>() {
             @Override
             public Object answer(InvocationOnMock invocation) {
@@ -118,7 +106,7 @@ public class BaseTest {
         return doAnswer(new Answer<Object>() {
             @Override
             public Object answer(InvocationOnMock invocation) {
-                op.end(response);
+                op.controller().end(response);
                 return null;
             }
         });
@@ -126,14 +114,6 @@ public class BaseTest {
 
     @NonNull
     protected static <T> Stubber doEndOp(final Op<T> op, final int withReturnArgument) {
-        return doAnswer(new Answer<Object>() {
-            @Override
-            public Object answer(InvocationOnMock invocation) {
-                //noinspection unchecked
-                T o = (T) invocation.getArguments()[withReturnArgument];
-                op.end(o);
-                return null;
-            }
-        });
+        return op.controller().from(withReturnArgument);
     }
 }

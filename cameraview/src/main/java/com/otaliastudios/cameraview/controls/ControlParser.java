@@ -22,6 +22,7 @@ public class ControlParser {
     private int hdr;
     private int audio;
     private int videoCodec;
+    private int audioCodec;
     private int frontCameraEngine;
     private int backCameraEngine;
     private int pictureFormat;
@@ -40,6 +41,7 @@ public class ControlParser {
     public static final String KEY_CAMERA_HDR = "CameraView_cameraHdr";
     public static final String KEY_CAMERA_AUDIO = "CameraView_cameraAudio";
     public static final String KEY_CAMERA_VIDEO_CODEC = "CameraView_cameraVideoCodec";
+    public static final String KEY_CAMERA_AUDIO_CODEC = "CameraView_cameraAudioCodec";
     public static final String KEY_CAMERA_ENGINE_FRONT = "CameraView_cameraEngine_front";
     public static final String KEY_CAMERA_ENGINE_BACK = "CameraView_cameraEngine_back";
     public static final String KEY_CAMERA_PICTURE_FORMAT = "CameraView_cameraPictureFormat";
@@ -114,6 +116,7 @@ public class ControlParser {
         this.hdr = Hdr.DEFAULT.value();
         this.audio = Audio.DEFAULT.value();
         this.videoCodec = VideoCodec.DEFAULT.value();
+        this.audioCodec = AudioCodec.DEFAULT.value();
 
         preference.edit().putInt(KEY_CAMERA_PREVIEW, preview).apply();
         preference.edit().putInt(KEY_CAMERA_FACING, facing).apply();
@@ -124,6 +127,7 @@ public class ControlParser {
         preference.edit().putInt(KEY_CAMERA_HDR, hdr).apply();
         preference.edit().putInt(KEY_CAMERA_AUDIO, audio).apply();
         preference.edit().putInt(KEY_CAMERA_VIDEO_CODEC, videoCodec).apply();
+        preference.edit().putInt(KEY_CAMERA_AUDIO_CODEC, audioCodec).apply();
     }
 
     @NonNull
@@ -154,6 +158,16 @@ public class ControlParser {
     @NonNull
     public Hdr getHdr() {
         return Hdr.fromValue(hdr);
+    }
+
+    @NonNull
+    public Audio getAudio() {
+        return Audio.fromValue(audio);
+    }
+
+    @NonNull
+    public AudioCodec getAudioCodec() {
+        return AudioCodec.fromValue(audioCodec);
     }
 
     @NonNull

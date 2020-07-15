@@ -2,6 +2,7 @@ package com.otaliastudios.cameraview.engine;
 
 
 import android.graphics.PointF;
+import android.graphics.RectF;
 import android.location.Location;
 
 import com.google.android.gms.tasks.Task;
@@ -12,10 +13,13 @@ import com.otaliastudios.cameraview.VideoResult;
 import com.otaliastudios.cameraview.controls.Facing;
 import com.otaliastudios.cameraview.controls.Flash;
 import com.otaliastudios.cameraview.controls.PictureFormat;
+import com.otaliastudios.cameraview.engine.orchestrator.CameraState;
+import com.otaliastudios.cameraview.frame.ByteBufferFrameManager;
 import com.otaliastudios.cameraview.frame.FrameManager;
 import com.otaliastudios.cameraview.gesture.Gesture;
 import com.otaliastudios.cameraview.controls.Hdr;
 import com.otaliastudios.cameraview.controls.WhiteBalance;
+import com.otaliastudios.cameraview.metering.MeteringRegions;
 import com.otaliastudios.cameraview.size.AspectRatio;
 import com.otaliastudios.cameraview.size.Size;
 
@@ -24,8 +28,9 @@ import androidx.annotation.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
 
-public class MockCameraEngine extends CameraEngine {
+public class MockCameraEngine extends CameraBaseEngine {
 
     public boolean mPictureCaptured;
     public boolean mFocusStarted;
@@ -38,8 +43,8 @@ public class MockCameraEngine extends CameraEngine {
 
     @NonNull
     @Override
-    protected Task<Void> onStartEngine() {
-        return Tasks.forResult(null);
+    protected Task<CameraOptions> onStartEngine() {
+        return Tasks.forResult(mCameraOptions);
     }
 
     @NonNull
@@ -80,8 +85,19 @@ public class MockCameraEngine extends CameraEngine {
         mPreviewStreamSize = size;
     }
 
-    public void setMockEngineState(boolean started) {
-        mEngineStep.setState(started ? STATE_STARTED : STATE_STOPPED);
+    public void setMockState(@NonNull CameraState state) {
+        Task<Void> change = getOrchestrator().scheduleStateChange(getState(),
+                state,
+                false,
+                new Callable<Task<Void>>() {
+            @Override
+            public Task<Void> call() {
+                return Tasks.forResult(null);
+            }
+        });
+        try {
+            Tasks.await(change);
+        } catch (Exception ignore) {}
     }
 
     @Override
@@ -95,7 +111,6 @@ public class MockCameraEngine extends CameraEngine {
         mExposureCorrectionValue = EVvalue;
         mExposureCorrectionChanged = true;
     }
-
 
     @Override
     public void setFlash(@NonNull Flash flash) {
@@ -120,6 +135,16 @@ public class MockCameraEngine extends CameraEngine {
     @Override
     public void setPictureFormat(@NonNull PictureFormat pictureFormat) {
         mPictureFormat = pictureFormat;
+    }
+
+    @Override
+    public void setHasFrameProcessors(boolean hasFrameProcessors) {
+        mHasFrameProcessors = hasFrameProcessors;
+    }
+
+    @Override
+    public void setFrameProcessingFormat(int format) {
+        mFrameProcessingFormat = format;
     }
 
     @Override
@@ -159,21 +184,25 @@ public class MockCameraEngine extends CameraEngine {
         return new ArrayList<>();
     }
 
+    @NonNull
     @Override
-    public void startAutoFocus(@Nullable Gesture gesture, @NonNull PointF point) {
+    protected List<Size> getFrameProcessingAvailableSizes() {
+        return new ArrayList<>();
+    }
+
+    @Override
+    public void startAutoFocus(@Nullable Gesture gesture, @NonNull MeteringRegions regions, @NonNull PointF legacyPoint) {
         mFocusStarted = true;
     }
 
     @NonNull
     @Override
-    protected FrameManager instantiateFrameManager() {
-        return new FrameManager(2, null);
+    protected FrameManager instantiateFrameManager(int poolSize) {
+        return new ByteBufferFrameManager(poolSize, null);
     }
 
     @Override
-    public void setPlaySounds(boolean playSounds) {
-
-    }
+    public void setPlaySounds(boolean playSounds) { }
 
     @Override
     protected boolean collectCameraInfo(@NonNull Facing facing) {

@@ -6,6 +6,8 @@ import androidx.test.espresso.ViewAction;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
+import com.otaliastudios.cameraview.tools.SdkExclude;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -17,6 +19,11 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+/**
+ * On API 26 these tests fail during Espresso's inRoot() - the window never gains focus.
+ * This might be due to a system popup or something similar.
+ */
+@SdkExclude(minSdkVersion = 26, maxSdkVersion = 26)
 @RunWith(AndroidJUnit4.class)
 @SmallTest
 public class ScrollGestureFinderTest extends GestureFinderTest<ScrollGestureFinder> {
@@ -42,7 +49,7 @@ public class ScrollGestureFinderTest extends GestureFinderTest<ScrollGestureFind
     public void testScrollDisabled() {
         finder.setActive(false);
         touchOp.listen();
-        touchOp.start();
+        touchOp.controller().start();
         onLayout().perform(swipeUp());
         Gesture found = touchOp.await(WAIT);
         assertNull(found);
@@ -50,7 +57,7 @@ public class ScrollGestureFinderTest extends GestureFinderTest<ScrollGestureFind
 
     private void testScroll(ViewAction scroll, Gesture expected, boolean increasing) {
         touchOp.listen();
-        touchOp.start();
+        touchOp.controller().start();
         onLayout().perform(scroll);
         Gesture found = touchOp.await(WAIT);
         assertEquals(found, expected);

@@ -5,8 +5,6 @@ import android.media.CamcorderProfile;
 import android.media.MediaRecorder;
 import android.view.SurfaceView;
 
-import androidx.annotation.NonNull;
-
 import com.otaliastudios.cameraview.VideoResult;
 import com.otaliastudios.cameraview.engine.Camera1Engine;
 import com.otaliastudios.cameraview.internal.CamcorderProfiles;

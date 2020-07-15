@@ -1,4 +1,4 @@
-[![Build Status](https://github.com/natario1/CameraView/workflows/Build/badge.svg)](https://github.com/natario1/CameraView/actions)
+[![Build Status](https://github.com/natario1/CameraView/workflows/Build/badge.svg?event=push)](https://github.com/natario1/CameraView/actions)
 [![Code Coverage](https://codecov.io/gh/natario1/CameraView/branch/master/graph/badge.svg)](https://codecov.io/gh/natario1/CameraView)
 [![Release](https://img.shields.io/github/release/natario1/CameraView.svg)](https://github.com/natario1/CameraView/releases)
 [![Issues](https://img.shields.io/github/issues-raw/natario1/CameraView.svg)](https://github.com/natario1/CameraView/issues)
@@ -22,21 +22,21 @@ CameraView is a well documented, high-level library that makes capturing picture
 addressing most of the common issues and needs, and still leaving you with flexibility where needed.
 
 ```groovy
-api 'com.otaliastudios:cameraview:2.4.0'
+api 'com.otaliastudios:cameraview:2.6.3'
 ```
 
 - Fast & reliable
-- Gestures support [[docs]](https://natario1.github.io/CameraView/docs/gestures.html)
-- Real-time filters [[docs]](https://natario1.github.io/CameraView/docs/filters.html)
-- Camera1 or Camera2 powered engine [[docs]](https://natario1.github.io/CameraView/docs/previews.html)
-- Frame processing support [[docs]](https://natario1.github.io/CameraView/docs/frame-processing.html)
-- Watermarks & animated overlays [[docs]](https://natario1.github.io/CameraView/docs/watermarks-and-overlays.html)
-- OpenGL powered preview [[docs]](https://natario1.github.io/CameraView/docs/previews.html)
-- Take high-quality content with `takePicture` and `takeVideo` [[docs]](https://natario1.github.io/CameraView/docs/capturing-media.html)
-- Take super-fast snapshots with `takePictureSnapshot` and `takeVideoSnapshot` [[docs]](https://natario1.github.io/CameraView/docs/capturing-media.html)
-- Smart sizing: create a `CameraView` of any size [[docs]](https://natario1.github.io/CameraView/docs/preview-size.html)
-- Control HDR, flash, zoom, white balance, exposure, location, grid drawing & more [[docs]](https://natario1.github.io/CameraView/docs/controls.html)
-- RAW pictures support [[docs]](https://natario1.github.io/CameraView/docs/controls.html)
+- Gestures support [[docs]](https://natario1.github.io/CameraView/docs/gestures)
+- Real-time filters [[docs]](https://natario1.github.io/CameraView/docs/filters)
+- Camera1 or Camera2 powered engine [[docs]](https://natario1.github.io/CameraView/docs/previews)
+- Frame processing support [[docs]](https://natario1.github.io/CameraView/docs/frame-processing)
+- Watermarks & animated overlays [[docs]](https://natario1.github.io/CameraView/docs/watermarks-and-overlays)
+- OpenGL powered preview [[docs]](https://natario1.github.io/CameraView/docs/previews)
+- Take high-quality content with `takePicture` and `takeVideo` [[docs]](https://natario1.github.io/CameraView/docs/capturing-media)
+- Take super-fast snapshots with `takePictureSnapshot` and `takeVideoSnapshot` [[docs]](https://natario1.github.io/CameraView/docs/capturing-media)
+- Smart sizing: create a `CameraView` of any size [[docs]](https://natario1.github.io/CameraView/docs/preview-size)
+- Control HDR, flash, zoom, white balance, exposure, location, grid drawing & more [[docs]](https://natario1.github.io/CameraView/docs/controls)
+- RAW pictures support [[docs]](https://natario1.github.io/CameraView/docs/controls)
 - Lightweight
 - Works down to API level 15
 - Well tested
@@ -85,8 +85,8 @@ Thanks to all our project backers... [[become a backer]](https://opencollective.
 ## Setup
 
 Please read the [official website](https://natario1.github.io/CameraView) for setup instructions and documentation.
-You might also be interested in our [changelog](https://natario1.github.io/CameraView/about/changelog.html)
-or in the [v1 migration guide](https://natario1.github.io/CameraView/extra/v1-migration-guide.html). 
+You might also be interested in our [changelog](https://natario1.github.io/CameraView/about/changelog)
+or in the [v1 migration guide](https://natario1.github.io/CameraView/extra/v1-migration-guide). 
 Using CameraView is extremely simple:
 
 ```xml
@@ -114,6 +114,11 @@ Using CameraView is extremely simple:
     app:cameraVideoSizeAspectRatio="@string/video_ratio"
     app:cameraSnapshotMaxWidth="@integer/snapshot_max_width"
     app:cameraSnapshotMaxHeight="@integer/snapshot_max_height"
+    app:cameraFrameProcessingMaxWidth="@integer/processing_max_width"
+    app:cameraFrameProcessingMaxHeight="@integer/processing_max_height"
+    app:cameraFrameProcessingFormat="@integer/processing_format"
+    app:cameraFrameProcessingPoolSize="@integer/processing_pool_size"
+    app:cameraFrameProcessingExecutors="@integer/processing_executors"
     app:cameraVideoBitRate="@integer/video_bit_rate"
     app:cameraAudioBitRate="@integer/audio_bit_rate"
     app:cameraGestureTap="none|autoFocus|takePicture"
@@ -124,6 +129,7 @@ Using CameraView is extremely simple:
     app:cameraEngine="camera1|camera2"
     app:cameraPreview="glSurface|surface|texture"
     app:cameraPreviewFrameRate="@integer/preview_frame_rate"
+    app:cameraPreviewFrameRateExact="false|true"
     app:cameraFacing="back|front"
     app:cameraHdr="on|off"
     app:cameraFlash="on|auto|torch|off"
@@ -143,6 +149,7 @@ Using CameraView is extremely simple:
     app:cameraPictureMetering="true|false"
     app:cameraPictureSnapshotMetering="false|true"
     app:cameraPictureFormat="jpeg|dng"
+    app:cameraRequestPermissions="true|false"
     app:cameraExperimental="false|true">
     
     <!-- Watermark! -->
