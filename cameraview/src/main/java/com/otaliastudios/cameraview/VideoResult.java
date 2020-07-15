@@ -33,7 +33,6 @@ public class VideoResult {
         public File file;
         public FileDescriptor fileDescriptor;
         public Facing facing;
-        public FileDescriptor fileDescriptor;
         public VideoCodec videoCodec;
         public Audio audio;
         public long maxSize;

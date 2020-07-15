@@ -212,17 +212,17 @@ task mergeCoverageReports(type: JacocoReport) {
     dependsOn "compileDebugSources"
 
     // Merge unit tests and android tests data
-    executionData = fileTree(dir: "$buildDir", includes: [
-            "jacoco/testDebugUnitTest.exec", // Unit tests
-            "outputs/code_coverage/debugAndroidTest/connected/*coverage.ec" // Android tests
-    ])
+//    executionData = fileTree(dir: "$buildDir", includes: [
+//            "jacoco/testDebugUnitTest.exec", // Unit tests
+//            "outputs/code_coverage/debugAndroidTest/connected/*coverage.ec" // Android tests
+//    ])
 
     // Sources
-    sourceDirectories = files(android.sourceSets.main.java.sourceFiles)
-    additionalSourceDirs = files([ // Add BuildConfig and R.
-            "$buildDir/generated/source/buildConfig/debug",
-            "$buildDir/generated/source/r/debug"
-    ])
+//    sourceDirectories = files(android.sourceSets.main.java.sourceFiles)
+//    additionalSourceDirs = files([ // Add BuildConfig and R.
+//            "$buildDir/generated/source/buildConfig/debug",
+//            "$buildDir/generated/source/r/debug"
+//    ])
 
     // Classes (.class files)
     // Not everything in the filter relates to CameraView,
@@ -258,7 +258,7 @@ task mergeCoverageReports(type: JacocoReport) {
     // We don't test OpenGL filters.
     classFilter.add('**/com/otaliastudios/cameraview/filters/**.*')
 
-    classDirectories = fileTree(dir: classDir, excludes: classFilter);
+//    classDirectories = fileTree(dir: classDir, excludes: classFilter);
 
     reports.html.enabled = true
     reports.xml.enabled = true

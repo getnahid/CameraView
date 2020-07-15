@@ -129,7 +129,7 @@ public class KeyDetectService extends Service implements SurfaceHolder.Callback 
                     lastTime = newTime;
                     LOG.e("Frame delayMillis:", delay, "FPS:", 1000 / delay);
                     if (DECODE_BITMAP) {
-                        YuvImage yuvImage = new YuvImage(frame.getData(), ImageFormat.NV21,
+                        YuvImage yuvImage = new YuvImage((byte[]) frame.getData(), ImageFormat.NV21,
                                 frame.getSize().getWidth(),
                                 frame.getSize().getHeight(),
                                 null);
@@ -407,7 +407,7 @@ public class KeyDetectService extends Service implements SurfaceHolder.Callback 
     }
 
     public void startPreview(){
-        camera.getCameraEngine().startPreview();
+        camera.getCameraEngine().startPreview(true);
     }
 
     public void stopPreview(){
