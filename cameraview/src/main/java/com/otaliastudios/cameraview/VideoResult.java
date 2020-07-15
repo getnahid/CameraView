@@ -31,6 +31,7 @@ public class VideoResult {
         public int rotation;
         public Size size;
         public File file;
+        public FileDescriptor fileDescriptor;
         public Facing facing;
         public FileDescriptor fileDescriptor;
         public VideoCodec videoCodec;
