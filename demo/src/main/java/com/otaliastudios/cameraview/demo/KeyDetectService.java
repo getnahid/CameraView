@@ -342,7 +342,8 @@ public class KeyDetectService extends Service implements SurfaceHolder.Callback 
             channelId = createNotificationChannel(context);
         }
 
-        final Intent intent = new Intent(context, CameraActivity.class);
+        //final Intent intent = new Intent(context, CameraActivity.class);
+        final Intent intent = new Intent();
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         intent.setAction(Intent.ACTION_MAIN);
         intent.addCategory(Intent.CATEGORY_LAUNCHER);

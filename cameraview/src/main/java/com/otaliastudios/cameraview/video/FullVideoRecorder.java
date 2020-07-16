@@ -5,6 +5,7 @@ import android.media.MediaRecorder;
 import android.os.Build;
 import android.view.SurfaceView;
 
+import com.otaliastudios.cameraview.CameraException;
 import com.otaliastudios.cameraview.CameraLogger;
 import com.otaliastudios.cameraview.VideoResult;
 import com.otaliastudios.cameraview.controls.Audio;

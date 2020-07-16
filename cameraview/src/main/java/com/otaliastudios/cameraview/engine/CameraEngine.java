@@ -183,7 +183,6 @@ public abstract class CameraEngine implements
     @NonNull
     protected final Callback getCallback() {
         return mCallback;
-        recreateHandler(false);
     }
 
     @NonNull
@@ -614,11 +613,6 @@ public abstract class CameraEngine implements
     @SuppressWarnings("ConstantConditions")
     @Override
     public final void onSurfaceAvailable() {
-        LOG.i("onSurfaceAvailable:", "Size is", getPreview().getSurfaceSize());
-        startBind();
-        startPreview();
-    }
-
         LOG.i("onSurfaceAvailable:", "Size is", getPreview().getSurfaceSize());
         startBind();
         startPreview(true);

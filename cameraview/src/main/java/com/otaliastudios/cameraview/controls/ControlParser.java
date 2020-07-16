@@ -161,11 +161,6 @@ public class ControlParser {
     }
 
     @NonNull
-    public Audio getAudio() {
-        return Audio.fromValue(audio);
-    }
-
-    @NonNull
     public AudioCodec getAudioCodec() {
         return AudioCodec.fromValue(audioCodec);
     }

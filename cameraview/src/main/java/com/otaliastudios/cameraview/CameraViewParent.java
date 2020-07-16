@@ -499,6 +499,8 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
 
     //endregion
 
+    //region Filters
+
     /**
      * Applies a real-time filter to the camera preview, if it supports it.
      * The only preview type that does so is currently {@link Preview#GL_SURFACE}.
@@ -559,7 +561,36 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
 
     //endregion
 
-    //end region overlay
+    //region Overlays
+
+//    @Override
+//    public LayoutParams generateLayoutParams(AttributeSet attributeSet) {
+//        if (!mInEditor && mOverlayLayout.isOverlay(attributeSet)) {
+//            return mOverlayLayout.generateLayoutParams(attributeSet);
+//        }
+//        return super.generateLayoutParams(attributeSet);
+//    }
+//
+//    @Override
+//    public void addView(View child, int index, ViewGroup.LayoutParams params) {
+//        if (!mInEditor && mOverlayLayout.isOverlay(params)) {
+//            mOverlayLayout.addView(child, params);
+//        } else {
+//            super.addView(child, index, params);
+//        }
+//    }
+//
+//    @Override
+//    public void removeView(View view) {
+//        ViewGroup.LayoutParams params = view.getLayoutParams();
+//        if (!mInEditor && params != null && mOverlayLayout.isOverlay(params)) {
+//            mOverlayLayout.removeView(view);
+//        } else {
+//            super.removeView(view);
+//        }
+//    }
+
+    //endregion
 
     /**
      * Starts a 3A touch metering process at the given coordinates, with respect
@@ -598,7 +629,7 @@ public class CameraViewParent extends FrameLayout implements LifecycleObserver {
                 new PointF(region.centerX(), region.centerY()));
     }
 
-//region Measuring behavior
+    //region Measuring behavior
 
     private String ms(int mode) {
         switch (mode) {
