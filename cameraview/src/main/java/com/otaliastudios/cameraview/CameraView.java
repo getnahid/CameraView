@@ -1653,12 +1653,28 @@ public class CameraView {
 
         @Override
         public void dispatchHidePreview() {
-
+            LOG.i("dispatchOnVideoRecordingEnd");
+            mUiHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    for (CameraListener listener : mListeners) {
+                        listener.onHidePreview();
+                    }
+                }
+            });
         }
 
         @Override
         public void dispatchStopVideoRecording() {
-
+            LOG.i("dispatchStopVideoRecording");
+            mUiHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    for (CameraListener listener : mListeners) {
+                        listener.stopVideoRecording();
+                    }
+                }
+            });
         }
 
         @Override
