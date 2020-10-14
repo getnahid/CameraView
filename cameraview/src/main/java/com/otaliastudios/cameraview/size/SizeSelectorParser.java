@@ -49,14 +49,17 @@ public class SizeSelectorParser {
         getPictureSizeSelector();
         getVideoSizeSelector();
 
-        if (mEngine == Engine.CAMERA2) {
-            defaultWidth = 0;
-            defaultHeight = 0;
-        } else {
-            CamcorderProfile profile = CamcorderProfile.get(cameraId, CamcorderProfile.QUALITY_HIGH);
-            defaultWidth = profile.videoFrameHeight;
-            defaultHeight = profile.videoFrameWidth;
-        }
+        defaultWidth = 0;
+        defaultHeight = 0;
+
+//        if (mEngine == Engine.CAMERA2) {
+//            defaultWidth = 0;
+//            defaultHeight = 0;
+//        } else {
+//            CamcorderProfile profile = CamcorderProfile.get(cameraId, CamcorderProfile.QUALITY_HIGH);
+//            defaultWidth = profile.videoFrameHeight;
+//            defaultHeight = profile.videoFrameWidth;
+//        }
     }
 
     public int getVideoSizeMaxWidth() {

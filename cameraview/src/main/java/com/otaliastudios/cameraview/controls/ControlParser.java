@@ -31,6 +31,9 @@ public class ControlParser {
     private boolean showPreviewOverOtherApp;
     private SharedPreferences preference;
     private Context context;
+    private int audioBitrate;
+    private int videoBitrate;
+    private int audioSource;
 
     public static final String KEY_CAMERA_PREVIEW = "CameraView_cameraPreview";
     public static final String KEY_CAMERA_FACING = "CameraView_cameraFacing";
@@ -40,6 +43,7 @@ public class ControlParser {
     public static final String KEY_CAMERA_MODE = "CameraView_cameraMode";
     public static final String KEY_CAMERA_HDR = "CameraView_cameraHdr";
     public static final String KEY_CAMERA_AUDIO = "CameraView_cameraAudio";
+    public static final String KEY_CAMERA_AUDIO_SOURCE = "CameraView_cameraAudioSource";
     public static final String KEY_CAMERA_VIDEO_CODEC = "CameraView_cameraVideoCodec";
     public static final String KEY_CAMERA_AUDIO_CODEC = "CameraView_cameraAudioCodec";
     public static final String KEY_CAMERA_ENGINE_FRONT = "CameraView_cameraEngine_front";
@@ -48,6 +52,8 @@ public class ControlParser {
     public static final String KEY_CAMERA_ZOOM = "CameraView_cameraZoom";
     public static final String KEY_CAMERA_SHOW_PREVIEW = "CameraView_cameraShowPreview";
     public static final String KEY_CAMERA_SHOW_PREVIEW_OVER_OTHER_APP = "CameraView_cameraShowPreviewOverOtherApp";
+    public static final String KEY_CAMERA_VIDEO_BIT_RATE = "CameraView_cameraVideoBitRate";
+    public static final String KEY_CAMERA_AUDIO_BIT_RATE = "CameraView_cameraAudioBitRate";
 
     public ControlParser(@NonNull Context context, SharedPreferences preference) {
         this.preference = preference;
@@ -67,13 +73,17 @@ public class ControlParser {
         this.mode = preference.getInt(KEY_CAMERA_MODE, Mode.DEFAULT.value());
         this.hdr = preference.getInt(KEY_CAMERA_HDR, Hdr.DEFAULT.value());
         this.audio = preference.getInt(KEY_CAMERA_AUDIO, Audio.DEFAULT.value());
+        this.audioSource = preference.getInt(KEY_CAMERA_AUDIO_SOURCE, AudioSource.DEFAULT.value());
         this.videoCodec = preference.getInt(KEY_CAMERA_VIDEO_CODEC, VideoCodec.DEFAULT.value());
+        this.audioCodec = preference.getInt(KEY_CAMERA_AUDIO_CODEC, AudioCodec.DEFAULT.value());
         this.pictureFormat = preference.getInt(KEY_CAMERA_PICTURE_FORMAT, PictureFormat.DEFAULT.value());
         this.zoom = preference.getFloat(KEY_CAMERA_ZOOM, 0.0f);
         this.showPreview = preference.getBoolean(KEY_CAMERA_SHOW_PREVIEW, false);
         this.showPreviewOverOtherApp = preference.getBoolean(KEY_CAMERA_SHOW_PREVIEW_OVER_OTHER_APP, false);
         this.frontCameraEngine = preference.getInt(KEY_CAMERA_ENGINE_FRONT, Engine.CAMERA2.value());
         this.backCameraEngine = preference.getInt(KEY_CAMERA_ENGINE_BACK, Engine.CAMERA2.value());
+        this.videoBitrate = preference.getInt(KEY_CAMERA_VIDEO_BIT_RATE, 0);
+        this.audioBitrate = preference.getInt(KEY_CAMERA_AUDIO_BIT_RATE, 0);
 
 //        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.P){
 ////            if(CameraUtils.isCamera2ApiSupportedDevice()) {
@@ -106,30 +116,6 @@ public class ControlParser {
         }
     }
 
-    public void setToDefault(Context context){
-        this.preview = Preview.DEFAULT.value();
-        this.facing = Facing.DEFAULT(context).value();
-        this.flash = Flash.DEFAULT.value();
-        this.grid = Grid.DEFAULT.value();
-        this.whiteBalance = WhiteBalance.DEFAULT.value();
-        this.mode = Mode.DEFAULT.value();
-        this.hdr = Hdr.DEFAULT.value();
-        this.audio = Audio.DEFAULT.value();
-        this.videoCodec = VideoCodec.DEFAULT.value();
-        this.audioCodec = AudioCodec.DEFAULT.value();
-
-        preference.edit().putInt(KEY_CAMERA_PREVIEW, preview).apply();
-        preference.edit().putInt(KEY_CAMERA_FACING, facing).apply();
-        preference.edit().putInt(KEY_CAMERA_FLASH, flash).apply();
-        preference.edit().putInt(KEY_CAMERA_GRID, grid).apply();
-        preference.edit().putInt(KEY_CAMERA_WHITE_BALANCE, whiteBalance).apply();
-        preference.edit().putInt(KEY_CAMERA_MODE, mode).apply();
-        preference.edit().putInt(KEY_CAMERA_HDR, hdr).apply();
-        preference.edit().putInt(KEY_CAMERA_AUDIO, audio).apply();
-        preference.edit().putInt(KEY_CAMERA_VIDEO_CODEC, videoCodec).apply();
-        preference.edit().putInt(KEY_CAMERA_AUDIO_CODEC, audioCodec).apply();
-    }
-
     @NonNull
     public Preview getPreview() {
         return Preview.fromValue(preview);
@@ -155,20 +141,60 @@ public class ControlParser {
         return WhiteBalance.fromValue(whiteBalance);
     }
 
+    public void setWhiteBalance(int value) {
+        this.whiteBalance = value;
+        preference.edit().putInt(KEY_CAMERA_WHITE_BALANCE, value).apply();
+    }
+
+    @NonNull
+    public int getVideoBitrate() {
+        return videoBitrate;
+    }
+
+    public void setVideoBitrate(int value) {
+        this.videoBitrate = value;
+        preference.edit().putInt(KEY_CAMERA_VIDEO_BIT_RATE, value).apply();
+    }
+
+    @NonNull
+    public int getAudioBitrate() {
+        return audioBitrate;
+    }
+
+    public void setAudioBitrate(int value) {
+        this.audioBitrate = value;
+        preference.edit().putInt(KEY_CAMERA_AUDIO_BIT_RATE, value).apply();
+    }
+
     @NonNull
     public Hdr getHdr() {
         return Hdr.fromValue(hdr);
+    }
+
+    public void setHdr(int value) {
+        this.hdr = value;
+        preference.edit().putInt(KEY_CAMERA_HDR, value).apply();
     }
 
     @NonNull
     public AudioCodec getAudioCodec() {
         return AudioCodec.fromValue(audioCodec);
     }
+    public void setAudioCodec(int value) {
+        this.audioCodec = value;
+        preference.edit().putInt(KEY_CAMERA_AUDIO_CODEC, value).apply();
+    }
 
     @NonNull
     public VideoCodec getVideoCodec() {
         return VideoCodec.fromValue(videoCodec);
     }
+
+    public void setVideoCodec(int value) {
+        this.videoCodec = value;
+        preference.edit().putInt(KEY_CAMERA_VIDEO_CODEC, value).apply();
+    }
+
 
     @NonNull
     public PictureFormat getPictureFormat() {
@@ -243,6 +269,16 @@ public class ControlParser {
     public void setAudio(int audio) {
         this.audio = audio;
         preference.edit().putInt(KEY_CAMERA_AUDIO, audio).apply();
+    }
+
+    @NonNull
+    public AudioSource getAudioSource() {
+        return AudioSource.fromValue(audioSource);
+    }
+
+    public void setAudioSource(int audioSource) {
+        this.audioSource = audioSource;
+        preference.edit().putInt(KEY_CAMERA_AUDIO_SOURCE, audioSource).apply();
     }
 
     @NonNull

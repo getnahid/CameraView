@@ -24,6 +24,7 @@ import androidx.annotation.VisibleForTesting;
 
 import com.otaliastudios.cameraview.controls.Audio;
 import com.otaliastudios.cameraview.controls.AudioCodec;
+import com.otaliastudios.cameraview.controls.AudioSource;
 import com.otaliastudios.cameraview.controls.Control;
 import com.otaliastudios.cameraview.controls.ControlParser;
 import com.otaliastudios.cameraview.controls.Engine;
@@ -130,8 +131,6 @@ public class CameraView {
     public static final String KEY_CAMERA_GRID_COLOR = "CameraView_cameraGridColor";
     public static final String KEY_CAMERA_VIDEO_MAX_SIZE = "CameraView_cameraVideoMaxSize";
     public static final String KEY_CAMERA_VIDEO_MAX_DURATION = "CameraView_cameraVideoMaxDuration";
-    public static final String KEY_CAMERA_VIDEO_BIT_RATE = "CameraView_cameraVideoBitRate";
-    public static final String KEY_CAMERA_AUDIO_BIT_RATE = "CameraView_cameraAudioBitRate";
     public static final String KEY_CAMERA_AUTO_FOCUS_RESET_DELAY = "CameraView_cameraAutoFocusResetDelay";
     public static final String KEY_CAMERA_PICTURE_METERING = "CameraView_cameraPictureMetering";
     public static final String KEY_CAMERA_SNAPSHOT_METERING = "CameraView_cameraPictureSnapshotMetering";
@@ -173,7 +172,7 @@ public class CameraView {
 
         // Self managed
         boolean playSounds = preference.getBoolean(KEY_CAMERA_PLAY_SOUND, DEFAULT_PLAY_SOUNDS);
-        boolean useDeviceOrientation = preference.getBoolean(KEY_CAMERA_DEVICE_ORIENTATION, DEFAULT_USE_DEVICE_ORIENTATION);
+        mUseDeviceOrientation = getUseDeviceOrientation();
         mExperimental = preference.getBoolean(KEY_CAMERA_EXPERIMENTAL, true);
         //mPreview = controls.getPreview();
         mEngine = controlParser.getEngine();
@@ -184,8 +183,8 @@ public class CameraView {
         //int gridColor = GridLinesLayout.DEFAULT_COLOR;
         long videoMaxSize = (long) preference.getFloat(KEY_CAMERA_VIDEO_MAX_SIZE, 0);
         int videoMaxDuration = preference.getInt(KEY_CAMERA_VIDEO_MAX_DURATION, 0);
-        int videoBitRate = preference.getInt(KEY_CAMERA_VIDEO_BIT_RATE, 0);
-        int audioBitRate = preference.getInt(KEY_CAMERA_AUDIO_BIT_RATE, 0);
+        int videoBitRate = controlParser.getVideoBitrate();
+        int audioBitRate = controlParser.getAudioBitrate();
         long autoFocusResetDelay = (long) preference.getInt(KEY_CAMERA_AUTO_FOCUS_RESET_DELAY, (int) DEFAULT_AUTOFOCUS_RESET_DELAY_MILLIS);
         boolean pictureMetering = preference.getBoolean(KEY_CAMERA_PICTURE_METERING, DEFAULT_PICTURE_METERING);
         boolean pictureSnapshotMetering = preference.getBoolean(KEY_CAMERA_SNAPSHOT_METERING, DEFAULT_PICTURE_SNAPSHOT_METERING);
@@ -216,7 +215,6 @@ public class CameraView {
 
         // Apply self managed
         setPlaySounds(playSounds);
-        setUseDeviceOrientation(useDeviceOrientation);
 
         // Apply camera engine params
         // Adding new ones? See setEngine().
@@ -226,6 +224,7 @@ public class CameraView {
         setWhiteBalance(controlParser.getWhiteBalance());
         setHdr(controlParser.getHdr());
         setAudio(controlParser.getAudio());
+        setAudioSource(controlParser.getAudioSource());
         setAudioBitRate(audioBitRate);
         setAudioCodec(controlParser.getAudioCodec());
         setPictureSize(sizeSelectors.getPictureSizeSelector());
@@ -471,6 +470,8 @@ public class CameraView {
     public void set(@NonNull Control control) {
         if (control instanceof Audio) {
             setAudio((Audio) control);
+        } else if (control instanceof AudioSource) {
+            setAudioSource((AudioSource) control);
         } else if (control instanceof Facing) {
             setFacing((Facing) control);
         } else if (control instanceof Flash) {
@@ -509,6 +510,8 @@ public class CameraView {
     public <T extends Control> T get(@NonNull Class<T> controlClass) {
         if (controlClass == Audio.class) {
             return (T) getAudio();
+        } else if (controlClass == AudioSource.class) {
+            return (T) getAudioSource();
         } else if (controlClass == Facing.class) {
             return (T) getFacing();
         } else if (controlClass == Flash.class) {
@@ -560,6 +563,7 @@ public class CameraView {
         setWhiteBalance(oldEngine.getWhiteBalance());
         setHdr(oldEngine.getHdr());
         setAudio(oldEngine.getAudio());
+        setAudioSource(oldEngine.getAudioSource());
         setAudioBitRate(oldEngine.getAudioBitRate());
         setAudioCodec(oldEngine.getAudioCodec());
         setPictureSize(oldEngine.getPictureSizeSelector());
@@ -844,6 +848,29 @@ public class CameraView {
         return mCameraEngine.getAudio();
     }
 
+    public void setAudioSource(@NonNull AudioSource audioSource) {
+
+        if (audioSource == getAudioSource() || isClosed()) {
+            // Check did took place, or will happen on start().
+            mCameraEngine.setAudioSource(audioSource);
+
+        } else if (checkPermissions(getAudio())) {
+            // Camera is running. Pass.
+            mCameraEngine.setAudioSource(audioSource);
+
+        } else {
+            // This means that the audio permission is being asked.
+            // Stop the camera so it can be restarted by the developer onPermissionResult.
+            // Developer must also set the audio value again...
+            // Not ideal but good for now.
+            close();
+        }
+    }
+
+    @NonNull
+    public AudioSource getAudioSource() {
+        return mCameraEngine.getAudioSource();
+    }
 
     /**
      * Sets the current delay in milliseconds to reset the focus after a metering event.
@@ -1501,6 +1528,7 @@ public class CameraView {
      * @param useDeviceOrientation true to consider device orientation for outputs
      */
     public void setUseDeviceOrientation(boolean useDeviceOrientation) {
+        preference.edit().putBoolean(KEY_CAMERA_DEVICE_ORIENTATION, useDeviceOrientation).apply();
         mUseDeviceOrientation = useDeviceOrientation;
     }
 
@@ -1512,7 +1540,7 @@ public class CameraView {
      * @return whether we are using the device orientation for outputs
      */
     public boolean getUseDeviceOrientation() {
-        return mUseDeviceOrientation;
+        return preference.getBoolean(KEY_CAMERA_DEVICE_ORIENTATION, DEFAULT_USE_DEVICE_ORIENTATION);
     }
 
     /**

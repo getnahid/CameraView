@@ -3,6 +3,7 @@ package com.otaliastudios.cameraview.video;
 import android.media.CamcorderProfile;
 import android.media.MediaRecorder;
 import android.os.Build;
+import android.util.Log;
 import android.view.SurfaceView;
 
 import com.otaliastudios.cameraview.CameraException;
@@ -10,6 +11,7 @@ import com.otaliastudios.cameraview.CameraLogger;
 import com.otaliastudios.cameraview.VideoResult;
 import com.otaliastudios.cameraview.controls.Audio;
 import com.otaliastudios.cameraview.controls.AudioCodec;
+import com.otaliastudios.cameraview.controls.AudioSource;
 import com.otaliastudios.cameraview.controls.VideoCodec;
 import com.otaliastudios.cameraview.internal.DeviceEncoders;
 import com.otaliastudios.cameraview.internal.CamcorderProfiles;
@@ -99,7 +101,27 @@ public abstract class FullVideoRecorder extends VideoRecorder {
         }
         boolean hasAudio = audioChannels > 0;
         if (hasAudio) {
-            mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.DEFAULT);
+            if (stub.audioSource == AudioSource.CAMCORDER) {
+                mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.CAMCORDER);
+            } else if (stub.audioSource == AudioSource.EXTERNAL_MIC) {
+                mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+            } else if (stub.audioSource == AudioSource.DEFAULT_AUDIO) {
+                mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.DEFAULT);
+            } else if (stub.audioSource == AudioSource.OPTIMIZE_FOR_VOICE_CALL) {
+                mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION);
+            } else if (stub.audioSource == AudioSource.OPTIMIZE_FOR_VOICE_RECOGNITION) {
+                mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION);
+            } else if (stub.audioSource == AudioSource.UNCOMPRESSED) {
+                if( Build.VERSION.SDK_INT >= Build.VERSION_CODES.N ) {
+                    mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.UNPROCESSED);
+                }
+                else {
+                    Log.e(TAG, "audio_src_voice_unprocessed requires Android 7");
+                    mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.CAMCORDER);
+                }
+            } else {
+                mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.CAMCORDER);
+            }
         }
 
         // 3. Set the output format. Before, change the profile data if the user

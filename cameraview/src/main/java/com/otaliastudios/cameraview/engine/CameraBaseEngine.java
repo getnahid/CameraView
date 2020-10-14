@@ -17,6 +17,7 @@ import com.otaliastudios.cameraview.PictureResult;
 import com.otaliastudios.cameraview.VideoResult;
 import com.otaliastudios.cameraview.controls.Audio;
 import com.otaliastudios.cameraview.controls.AudioCodec;
+import com.otaliastudios.cameraview.controls.AudioSource;
 import com.otaliastudios.cameraview.controls.Facing;
 import com.otaliastudios.cameraview.controls.Flash;
 import com.otaliastudios.cameraview.controls.Hdr;
@@ -82,6 +83,7 @@ public abstract class CameraBaseEngine extends CameraEngine {
     private Facing mFacing;
     private Mode mMode;
     private Audio mAudio;
+    private AudioSource mAudioSource;
     private long mVideoMaxSize;
     private int mVideoMaxDuration;
     private int mVideoBitRate;
@@ -391,6 +393,23 @@ public abstract class CameraBaseEngine extends CameraEngine {
         return mAudio;
     }
 
+    @Override
+    public final void setAudioSource(@NonNull AudioSource audioSource) {
+        if (mAudioSource != audioSource) {
+            if (isTakingVideo()) {
+                LOG.w("Audio setting was changed while recording. " +
+                        "Changes will take place starting from next video");
+            }
+            mAudioSource = audioSource;
+        }
+    }
+
+    @NonNull
+    @Override
+    public final AudioSource getAudioSource() {
+        return mAudioSource;
+    }
+
     /**
      * Sets the desired mode (either picture or video).
      * @param mode desired mode.
@@ -598,6 +617,7 @@ public abstract class CameraBaseEngine extends CameraEngine {
                 stub.location = mLocation;
                 stub.facing = mFacing;
                 stub.audio = mAudio;
+                stub.audioSource = mAudioSource;
                 stub.maxSize = mVideoMaxSize;
                 stub.maxDuration = mVideoMaxDuration;
                 stub.videoBitRate = mVideoBitRate;

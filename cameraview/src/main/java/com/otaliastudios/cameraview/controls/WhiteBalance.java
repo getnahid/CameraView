@@ -67,7 +67,7 @@ public enum WhiteBalance implements Control {
     }
 
     @NonNull
-    static WhiteBalance fromValue(int value) {
+    public static WhiteBalance fromValue(int value) {
         WhiteBalance[] list = WhiteBalance.values();
         for (WhiteBalance action : list) {
             if (action.value() == value) {

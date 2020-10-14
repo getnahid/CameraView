@@ -43,7 +43,7 @@ public enum VideoCodec implements Control {
     }
 
     @NonNull
-    static VideoCodec fromValue(int value) {
+    public static VideoCodec fromValue(int value) {
         VideoCodec[] list = VideoCodec.values();
         for (VideoCodec action : list) {
             if (action.value() == value) {

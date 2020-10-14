@@ -51,7 +51,7 @@ public enum AudioCodec implements Control {
     }
 
     @NonNull
-    static AudioCodec fromValue(int value) {
+    public static AudioCodec fromValue(int value) {
         AudioCodec[] list = AudioCodec.values();
         for (AudioCodec action : list) {
             if (action.value() == value) {

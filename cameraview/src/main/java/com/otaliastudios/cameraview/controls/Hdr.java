@@ -36,7 +36,7 @@ public enum Hdr implements Control {
     }
 
     @NonNull
-    static Hdr fromValue(int value) {
+    public static Hdr fromValue(int value) {
         Hdr[] list = Hdr.values();
         for (Hdr action : list) {
             if (action.value() == value) {

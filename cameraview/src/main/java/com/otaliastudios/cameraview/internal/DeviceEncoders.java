@@ -69,7 +69,9 @@ public class DeviceEncoders {
     private final static String TAG = DeviceEncoders.class.getSimpleName();
     private final static CameraLogger LOG = CameraLogger.create(TAG);
 
-    @VisibleForTesting static boolean ENABLED = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N;//Build.VERSION.SDK_INT >= 21;
+    @VisibleForTesting
+    //static boolean ENABLED = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N;//Build.VERSION.SDK_INT >= 21;
+    static boolean ENABLED = Build.VERSION.SDK_INT >= 21;
 
     public final static int MODE_RESPECT_ORDER = 0;
     public final static int MODE_PREFER_HARDWARE = 1;

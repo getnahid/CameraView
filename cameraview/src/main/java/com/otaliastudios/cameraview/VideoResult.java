@@ -4,6 +4,7 @@ import android.location.Location;
 
 import com.otaliastudios.cameraview.controls.Audio;
 import com.otaliastudios.cameraview.controls.AudioCodec;
+import com.otaliastudios.cameraview.controls.AudioSource;
 import com.otaliastudios.cameraview.controls.Facing;
 import com.otaliastudios.cameraview.controls.VideoCodec;
 import com.otaliastudios.cameraview.size.Size;
@@ -37,6 +38,7 @@ public class VideoResult {
         public VideoCodec videoCodec;
         public AudioCodec audioCodec;
         public Audio audio;
+        public AudioSource audioSource;
         public long maxSize;
         public int maxDuration;
         public int endReason;
@@ -64,6 +66,7 @@ public class VideoResult {
     private final VideoCodec videoCodec;
     private final AudioCodec audioCodec;
     private final Audio audio;
+    private final AudioSource audioSource;
     private final long maxSize;
     private final int maxDuration;
     private final int endReason;
@@ -82,6 +85,7 @@ public class VideoResult {
         videoCodec = builder.videoCodec;
         audioCodec = builder.audioCodec;
         audio = builder.audio;
+        audioSource = builder.audioSource;
         maxSize = builder.maxSize;
         maxDuration = builder.maxDuration;
         endReason = builder.endReason;
@@ -215,6 +219,11 @@ public class VideoResult {
     @NonNull
     public Audio getAudio() {
         return audio;
+    }
+
+    @NonNull
+    public AudioSource getAudioSource() {
+        return audioSource;
     }
 
     /**

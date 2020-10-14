@@ -23,6 +23,7 @@ import com.otaliastudios.cameraview.CameraOptions;
 import com.otaliastudios.cameraview.CameraViewParent;
 import com.otaliastudios.cameraview.PictureResult;
 import com.otaliastudios.cameraview.controls.AudioCodec;
+import com.otaliastudios.cameraview.controls.AudioSource;
 import com.otaliastudios.cameraview.controls.PictureFormat;
 import com.otaliastudios.cameraview.engine.orchestrator.CameraOrchestrator;
 import com.otaliastudios.cameraview.engine.orchestrator.CameraState;
@@ -713,6 +714,9 @@ public abstract class CameraEngine implements
 
     public abstract void setAudio(@NonNull Audio audio);
     @NonNull public abstract Audio getAudio();
+
+    public abstract void setAudioSource(@NonNull AudioSource audioSource);
+    @NonNull public abstract AudioSource getAudioSource();
 
     public abstract void setMode(@NonNull Mode mode);
     @NonNull public abstract Mode getMode();
