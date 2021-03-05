@@ -1,13 +1,10 @@
 package com.otaliastudios.cameraview.video;
 
 import android.graphics.SurfaceTexture;
-import android.media.MediaFormat;
-import android.media.MediaRecorder;
 import android.opengl.EGL14;
 import android.os.Build;
 
 import com.otaliastudios.cameraview.CameraLogger;
-import com.otaliastudios.cameraview.controls.AudioCodec;
 import com.otaliastudios.cameraview.internal.DeviceEncoders;
 import com.otaliastudios.cameraview.overlay.Overlay;
 import com.otaliastudios.cameraview.VideoResult;
@@ -181,7 +178,7 @@ public class SnapshotVideoRecorder extends VideoRecorder implements RendererFram
                         "audioOffset:", audioEncoderOffset);
                 try {
                     deviceEncoders = new DeviceEncoders(DeviceEncoders.MODE_RESPECT_ORDER,
-                            videoType, audioType, videoEncoderOffset, audioEncoderOffset);
+                            videoType, audioType, videoEncoderOffset, audioEncoderOffset, true);
                 } catch (RuntimeException e) {
                     LOG.w("Could not respect encoders parameters.",
                             "Going on again without checking encoders, possibly failing.");
@@ -192,7 +189,7 @@ public class SnapshotVideoRecorder extends VideoRecorder implements RendererFram
                     break;
                 }
                 deviceEncoders = new DeviceEncoders(DeviceEncoders.MODE_PREFER_HARDWARE,
-                        videoType, audioType, videoEncoderOffset, audioEncoderOffset);
+                        videoType, audioType, videoEncoderOffset, audioEncoderOffset, true);
                 try {
                     newVideoSize = deviceEncoders.getSupportedVideoSize(mResult.size);
                     newVideoBitRate = deviceEncoders.getSupportedVideoBitRate(mResult.videoBitRate);

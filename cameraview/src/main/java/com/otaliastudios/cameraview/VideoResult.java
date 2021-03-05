@@ -28,6 +28,7 @@ public class VideoResult {
 
         Stub() {}
 
+        public boolean isUsingCamera2Api;
         public boolean isSnapshot;
         public Location location;
         public int rotation;
@@ -56,6 +57,7 @@ public class VideoResult {
     @SuppressWarnings("WeakerAccess")
     public static final int REASON_MAX_DURATION_REACHED = 2;
 
+    private final boolean isUsingCamera2Api;
     private final boolean isSnapshot;
     private final Location location;
     private final int rotation;
@@ -75,6 +77,7 @@ public class VideoResult {
     private final int audioBitRate;
 
     VideoResult(@NonNull Stub builder) {
+        isUsingCamera2Api = builder.isUsingCamera2Api;
         isSnapshot = builder.isSnapshot;
         location = builder.location;
         rotation = builder.rotation;
@@ -261,5 +264,9 @@ public class VideoResult {
      */
     public int getAudioBitRate() {
         return audioBitRate;
+    }
+
+    public boolean isUsingCamera2Api() {
+        return isUsingCamera2Api;
     }
 }

@@ -12,28 +12,8 @@ import com.otaliastudios.cameraview.CameraUtils;
  * Parses controls from XML attributes.
  */
 public class ControlParser {
-
-    private int preview;
-    private int facing;
-    private int flash;
-    private int grid;
-    private int whiteBalance;
-    private int mode;
-    private int hdr;
-    private int audio;
-    private int videoCodec;
-    private int audioCodec;
-    private int frontCameraEngine;
-    private int backCameraEngine;
-    private int pictureFormat;
-    private float zoom;
-    private boolean showPreview;
-    private boolean showPreviewOverOtherApp;
     private SharedPreferences preference;
     private Context context;
-    private int audioBitrate;
-    private int videoBitrate;
-    private int audioSource;
 
     public static final String KEY_CAMERA_PREVIEW = "CameraView_cameraPreview";
     public static final String KEY_CAMERA_FACING = "CameraView_cameraFacing";
@@ -58,57 +38,34 @@ public class ControlParser {
     public ControlParser(@NonNull Context context, SharedPreferences preference) {
         this.preference = preference;
         this.context = context;
-
-        if(CameraUtils.isGLSurfaceSupported()) {
-            this.preview = preference.getInt(KEY_CAMERA_PREVIEW, Preview.GL_SURFACE.value());
-        } else {
-            this.preview = preference.getInt(KEY_CAMERA_PREVIEW, Preview.SURFACE.value());
-            setPreview(this.preview);
-        }
-
-        this.facing = preference.getInt(KEY_CAMERA_FACING, Facing.DEFAULT(context).value());
-        this.flash = preference.getInt(KEY_CAMERA_FLASH, Flash.DEFAULT.value());
-        this.grid = preference.getInt(KEY_CAMERA_GRID, Grid.DEFAULT.value());
-        this.whiteBalance = preference.getInt(KEY_CAMERA_WHITE_BALANCE, WhiteBalance.DEFAULT.value());
-        this.mode = preference.getInt(KEY_CAMERA_MODE, Mode.DEFAULT.value());
-        this.hdr = preference.getInt(KEY_CAMERA_HDR, Hdr.DEFAULT.value());
-        this.audio = preference.getInt(KEY_CAMERA_AUDIO, Audio.DEFAULT.value());
-        this.audioSource = preference.getInt(KEY_CAMERA_AUDIO_SOURCE, AudioSource.DEFAULT.value());
-        this.videoCodec = preference.getInt(KEY_CAMERA_VIDEO_CODEC, VideoCodec.DEFAULT.value());
-        this.audioCodec = preference.getInt(KEY_CAMERA_AUDIO_CODEC, AudioCodec.DEFAULT.value());
-        this.pictureFormat = preference.getInt(KEY_CAMERA_PICTURE_FORMAT, PictureFormat.DEFAULT.value());
-        this.zoom = preference.getFloat(KEY_CAMERA_ZOOM, 0.0f);
-        this.showPreview = preference.getBoolean(KEY_CAMERA_SHOW_PREVIEW, false);
-        this.showPreviewOverOtherApp = preference.getBoolean(KEY_CAMERA_SHOW_PREVIEW_OVER_OTHER_APP, false);
-        this.frontCameraEngine = preference.getInt(KEY_CAMERA_ENGINE_FRONT, Engine.CAMERA2.value());
-        this.backCameraEngine = preference.getInt(KEY_CAMERA_ENGINE_BACK, Engine.CAMERA2.value());
-        this.videoBitrate = preference.getInt(KEY_CAMERA_VIDEO_BIT_RATE, 0);
-        this.audioBitrate = preference.getInt(KEY_CAMERA_AUDIO_BIT_RATE, 0);
-
-//        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.P){
-////            if(CameraUtils.isCamera2ApiSupportedDevice()) {
-////                this.engine = preference.getInt(KEY_CAMERA_ENGINE, Engine.CAMERA2.value());
-////                setEngine(engine);
-////            } else {
-////                this.engine = preference.getInt(KEY_CAMERA_ENGINE, Engine.DEFAULT.value());
-////            }
-//
-//        }else {
-//            this.engine = preference.getInt(KEY_CAMERA_ENGINE, Engine.DEFAULT.value());
-//        }
-
         checkCamera2ApiSupport();
     }
 
+    private int getFrontCameraEngine() {
+        return preference.getInt(KEY_CAMERA_ENGINE_FRONT, Engine.CAMERA2.value());
+    }
+
+    private int getBackCameraEngine() {
+        return preference.getInt(KEY_CAMERA_ENGINE_BACK, Engine.CAMERA2.value());
+    }
+
+    private void setFrontCameraEngine(int value) {
+        preference.edit().putInt(KEY_CAMERA_ENGINE_FRONT, value).apply();
+    }
+
+    private void setBackCameraEngine(int value) {
+        preference.edit().putInt(KEY_CAMERA_ENGINE_BACK, value).apply();
+    }
+
     private void checkCamera2ApiSupport() {
-        if (this.facing == Facing.FRONT.value()) {
-            if (frontCameraEngine == Engine.CAMERA2.value()) {
+        if (getFacing() == Facing.FRONT) {
+            if (getFrontCameraEngine() == Engine.CAMERA2.value()) {
                 if (!CameraUtils.isFrontCameraSupportsCamera2api(context)) {
                     setEngine(Engine.CAMERA1.value());
                 }
             }
-        } else if (this.facing == Facing.BACK.value()) {
-            if (backCameraEngine == Engine.CAMERA2.value()) {
+        } else if (getFacing() == Facing.BACK) {
+            if (getBackCameraEngine() == Engine.CAMERA2.value()) {
                 if (!CameraUtils.isBackCameraSupportsCamera2api(context)) {
                     setEngine(Engine.CAMERA1.value());
                 }
@@ -116,178 +73,183 @@ public class ControlParser {
         }
     }
 
+    private int getDefaultPreviewValue() {
+        if(CameraUtils.isGLSurfaceSupported()) {
+            return Preview.GL_SURFACE.value();
+        } else {
+           return Preview.TEXTURE.value();
+        }
+    }
+
     @NonNull
     public Preview getPreview() {
+        int preview = preference.getInt(KEY_CAMERA_PREVIEW, getDefaultPreviewValue());
         return Preview.fromValue(preview);
     }
 
     public void setPreview(int preview) {
-        this.preview = preview;
         preference.edit().putInt(KEY_CAMERA_PREVIEW, preview).apply();
     }
 
     @NonNull
     public Grid getGrid() {
+        int grid = preference.getInt(KEY_CAMERA_GRID, Grid.DEFAULT.value());
         return Grid.fromValue(grid);
     }
 
     @NonNull
     public Mode getMode() {
+        int mode = preference.getInt(KEY_CAMERA_MODE, Mode.DEFAULT.value());
         return Mode.fromValue(mode);
     }
 
     @NonNull
     public WhiteBalance getWhiteBalance() {
+        int whiteBalance = preference.getInt(KEY_CAMERA_WHITE_BALANCE, WhiteBalance.DEFAULT.value());
         return WhiteBalance.fromValue(whiteBalance);
     }
 
     public void setWhiteBalance(int value) {
-        this.whiteBalance = value;
         preference.edit().putInt(KEY_CAMERA_WHITE_BALANCE, value).apply();
     }
 
     @NonNull
     public int getVideoBitrate() {
-        return videoBitrate;
+        return preference.getInt(KEY_CAMERA_VIDEO_BIT_RATE, 0);
     }
 
     public void setVideoBitrate(int value) {
-        this.videoBitrate = value;
         preference.edit().putInt(KEY_CAMERA_VIDEO_BIT_RATE, value).apply();
     }
 
     @NonNull
     public int getAudioBitrate() {
-        return audioBitrate;
+        return preference.getInt(KEY_CAMERA_AUDIO_BIT_RATE, 0);
     }
 
     public void setAudioBitrate(int value) {
-        this.audioBitrate = value;
         preference.edit().putInt(KEY_CAMERA_AUDIO_BIT_RATE, value).apply();
     }
 
     @NonNull
     public Hdr getHdr() {
+        int hdr = preference.getInt(KEY_CAMERA_HDR, Hdr.DEFAULT.value());
         return Hdr.fromValue(hdr);
     }
 
     public void setHdr(int value) {
-        this.hdr = value;
         preference.edit().putInt(KEY_CAMERA_HDR, value).apply();
     }
 
     @NonNull
     public AudioCodec getAudioCodec() {
+        int audioCodec = preference.getInt(KEY_CAMERA_AUDIO_CODEC, AudioCodec.DEFAULT.value());
         return AudioCodec.fromValue(audioCodec);
     }
     public void setAudioCodec(int value) {
-        this.audioCodec = value;
         preference.edit().putInt(KEY_CAMERA_AUDIO_CODEC, value).apply();
     }
 
     @NonNull
     public VideoCodec getVideoCodec() {
+        int videoCodec = preference.getInt(KEY_CAMERA_VIDEO_CODEC, VideoCodec.DEFAULT.value());
         return VideoCodec.fromValue(videoCodec);
     }
 
     public void setVideoCodec(int value) {
-        this.videoCodec = value;
         preference.edit().putInt(KEY_CAMERA_VIDEO_CODEC, value).apply();
     }
 
 
     @NonNull
     public PictureFormat getPictureFormat() {
+        int pictureFormat = preference.getInt(KEY_CAMERA_PICTURE_FORMAT, PictureFormat.DEFAULT.value());
         return PictureFormat.fromValue(pictureFormat);
     }
 
     public boolean canShowPreviewOverOtherApp(){
-        return showPreviewOverOtherApp;
+        return preference.getBoolean(KEY_CAMERA_SHOW_PREVIEW_OVER_OTHER_APP, false);
     }
 
     public void setShowPreviewOverOtherApp(boolean value) {
-        this.showPreviewOverOtherApp = value;
         preference.edit().putBoolean(KEY_CAMERA_SHOW_PREVIEW_OVER_OTHER_APP, value).apply();
     }
 
     public boolean canShowPreview(){
-        return showPreview;
+        return preference.getBoolean(KEY_CAMERA_SHOW_PREVIEW, false);
     }
 
     public void setShowPreview(boolean value) {
-        this.showPreview = value;
         preference.edit().putBoolean(KEY_CAMERA_SHOW_PREVIEW, value).apply();
     }
 
     public float getZoom(){
-        return zoom;
+        return preference.getFloat(KEY_CAMERA_ZOOM, 0.0f);
     }
 
     public void setZoom(float zoom) {
-        this.zoom = zoom;
         preference.edit().putFloat(KEY_CAMERA_ZOOM, zoom).apply();
     }
 
     @NonNull
     public Facing getFacing() {
-        //noinspection ConstantConditions
+        int facing = preference.getInt(KEY_CAMERA_FACING, Facing.DEFAULT(context).value());
         return Facing.fromValue(facing);
     }
 
     public void setFacing(int face) {
-        this.facing = face;
-        preference.edit().putInt(KEY_CAMERA_FACING, facing).apply();
+        preference.edit().putInt(KEY_CAMERA_FACING, face).apply();
         checkCamera2ApiSupport();
     }
 
     @NonNull
     public Engine getEngine() {
-        if (this.facing == Facing.FRONT.value()) {
-            return Engine.fromValue(frontCameraEngine);
-        } else if (this.facing == Facing.BACK.value()) {
-            return Engine.fromValue(backCameraEngine);
+        if (getFacing() == Facing.FRONT) {
+            return Engine.fromValue(getFrontCameraEngine());
+        } else if (getFacing() == Facing.BACK) {
+            return Engine.fromValue(getBackCameraEngine());
         }
 
         return Engine.CAMERA1;
     }
 
     public void setEngine(int engine) {
-        if (this.facing == Facing.FRONT.value()) {
-            this.frontCameraEngine = engine;
+        if (getFacing() == Facing.FRONT) {
+            setFrontCameraEngine(engine);
             preference.edit().putInt(KEY_CAMERA_ENGINE_FRONT, engine).apply();
-        } else if (this.facing == Facing.BACK.value()) {
-            this.backCameraEngine = engine;
+        } else if (getFacing() == Facing.BACK) {
+            setBackCameraEngine(engine);
             preference.edit().putInt(KEY_CAMERA_ENGINE_BACK, engine).apply();
         }
     }
 
     @NonNull
     public Audio getAudio() {
+        int audio = preference.getInt(KEY_CAMERA_AUDIO, Audio.DEFAULT.value());
         return Audio.fromValue(audio);
     }
 
     public void setAudio(int audio) {
-        this.audio = audio;
         preference.edit().putInt(KEY_CAMERA_AUDIO, audio).apply();
     }
 
     @NonNull
     public AudioSource getAudioSource() {
+        int audioSource = preference.getInt(KEY_CAMERA_AUDIO_SOURCE, AudioSource.DEFAULT.value());
         return AudioSource.fromValue(audioSource);
     }
 
     public void setAudioSource(int audioSource) {
-        this.audioSource = audioSource;
         preference.edit().putInt(KEY_CAMERA_AUDIO_SOURCE, audioSource).apply();
     }
 
     @NonNull
     public Flash getFlash() {
+        int flash = preference.getInt(KEY_CAMERA_FLASH, Flash.DEFAULT.value());
         return Flash.fromValue(flash);
     }
 
     public void setFlash(int flash) {
-        this.flash = flash;
         preference.edit().putInt(KEY_CAMERA_FLASH, flash).apply();
     }
 }

@@ -401,7 +401,9 @@ public class CameraUtils {
     }
 
     public static boolean isGLSurfaceSupported() {
-        if (Build.MODEL.toLowerCase().contains("K11".toLowerCase()) || Build.MODEL.equalsIgnoreCase("LG X charge")
+        if (Build.MODEL.toLowerCase().contains("k11".toLowerCase())
+                || Build.MODEL.equalsIgnoreCase("LG K11")
+                || Build.MODEL.equalsIgnoreCase("LG X charge")
                 || Build.MODEL.equalsIgnoreCase("LG K10 Power") || Build.MODEL.equalsIgnoreCase("LG G Pad F2 8.0")) {
             return false;
         } else if (Build.MODEL.equalsIgnoreCase("Galaxy Core2") || Build.MODEL.equalsIgnoreCase("Galaxy J7")
@@ -427,6 +429,8 @@ public class CameraUtils {
                 || Build.MODEL.equalsIgnoreCase("GR3 Smart touch")) {
             return false;
         } else if (Build.MODEL.equalsIgnoreCase("K5 Note")) {
+            return false;
+        } else if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.LOLLIPOP_MR1) {
             return false;
         }
 

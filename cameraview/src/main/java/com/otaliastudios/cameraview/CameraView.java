@@ -1230,6 +1230,8 @@ public class CameraView {
 
     private void takeVideo(@Nullable File file, @Nullable FileDescriptor fileDescriptor) {
         VideoResult.Stub stub = new VideoResult.Stub();
+        stub.isUsingCamera2Api = controlParser.getEngine() == Engine.CAMERA2;
+
         if (file != null) {
             mCameraEngine.takeVideo(stub, file, null);
         } else if (fileDescriptor != null) {
