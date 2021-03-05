@@ -1748,10 +1748,18 @@ public class CameraView {
         }
 
         @Override
-        public void onShutter(boolean shouldPlaySound) {
+        public void dispatchOnPictureShutter(boolean shouldPlaySound) {
             if (shouldPlaySound && mPlaySounds) {
                 playSound(MediaActionSound.SHUTTER_CLICK);
             }
+            mUiHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    for (CameraListener listener : mListeners) {
+                        listener.onPictureShutter();
+                    }
+                }
+            });
         }
 
         @Override
