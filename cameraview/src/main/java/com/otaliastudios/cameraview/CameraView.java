@@ -101,6 +101,7 @@ public class CameraView {
     private Engine mEngine;
     private Filter mPendingFilter;
     private int mFrameProcessingExecutors;
+    private int mActiveGestures;
 
     // Components
     private Handler mUiHandler;
@@ -197,7 +198,8 @@ public class CameraView {
         int frameFormat = preference.getInt(KEY_CAMERA_FRAME_PROCESSING_FORMAT, 0);
         int framePoolSize = preference.getInt(KEY_CAMERA_FRAME_PROCESSING_POOL_SIZE, DEFAULT_FRAME_PROCESSING_POOL_SIZE);
         int frameExecutors = preference.getInt(KEY_CAMERA_FRAME_PROCESSING_EXECUTORS, DEFAULT_FRAME_PROCESSING_EXECUTORS);
-
+        //boolean drawHardwareOverlays = a.getBoolean(R.styleable.CameraView_cameraDrawHardwareOverlays, false);
+        boolean drawHardwareOverlays = preference.getBoolean(KEY_CAMERA_DRAW_HARDWAREOVERLAYS, false);
         FilterParser filters = new FilterParser(preference);
 
         //a.recycle();
@@ -216,6 +218,7 @@ public class CameraView {
         // Apply self managed
         setPlaySounds(playSounds);
 
+        setDrawHardwareOverlays(drawHardwareOverlays);
         // Apply camera engine params
         // Adding new ones? See setEngine().
         setFacing(controlParser.getFacing());
@@ -1628,6 +1631,25 @@ public class CameraView {
         return mCameraEngine.isTakingPicture();
     }
 
+    /**
+     * Sets the overlay layout hardware canvas capture mode to allow hardware
+     * accelerated views to be captured in snapshots
+     *
+     * @param on true if enabled
+     */
+    public void setDrawHardwareOverlays(boolean on) {
+        mOverlayLayout.setHardwareCanvasEnabled(on);
+    }
+
+    /**
+     * Returns true if the overlay layout is set to capture the hardware canvas
+     * of child views
+     *
+     * @return boolean indicating hardware canvas capture is enabled
+     */
+    public boolean getDrawHardwareOverlays() {
+        return mOverlayLayout.getHardwareCanvasEnabled();
+    }
     //endregion
 
     //region Callbacks and dispatching
@@ -1860,12 +1882,10 @@ public class CameraView {
         }
 
         @Override
-        public void onDisplayOffsetChanged(int displayOffset, boolean willRecreate) {
-            LOG.i("onDisplayOffsetChanged", displayOffset, "recreate:", willRecreate);
-            if (isOpened() && !willRecreate) {
-                // Display offset changes when the device rotation lock is off and the activity
-                // is free to rotate. However, some changes will NOT recreate the activity, namely
-                // 180 degrees flips. In this case, we must restart the camera manually.
+        public void onDisplayOffsetChanged() {
+            if (isOpened()) {
+                // We can't handle display offset (View angle) changes without restarting.
+                // See comments in OrientationHelper for more information.
                 LOG.w("onDisplayOffsetChanged", "restarting the camera.");
                 close();
                 open();
