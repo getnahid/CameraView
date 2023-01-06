@@ -479,7 +479,7 @@ public class Camera2Engine extends CameraBaseEngine implements
 
         // Compute sizes.
         // TODO preview stream should never be bigger than 1920x1080 as per
-        //  CameraDevice.createCaptureSession. This should be probably be applied
+        //  CameraDevice.createCaptureSession. This should probably be applied
         //  before all the other external selectors, to treat it as a hard limit.
         //  OR: pass an int into these functions to be able to take smaller dims
         //  when session configuration fails
@@ -590,9 +590,15 @@ public class Camera2Engine extends CameraBaseEngine implements
 
                 @Override
                 public void onConfigureFailed(@NonNull CameraCaptureSession session) {
-                    // This SHOULD be a library error so we throw a RuntimeException.
                     String message = LOG.e("onConfigureFailed! Session", session);
-                    throw new RuntimeException(message);
+                    Throwable cause = new RuntimeException(message);
+                    if (!task.getTask().isComplete()) {
+                        task.trySetException(new CameraException(cause,
+                                CameraException.REASON_FAILED_TO_START_PREVIEW));
+                    } else {
+                        // Like onStartEngine.onError
+                        throw new CameraException(CameraException.REASON_DISCONNECTED);
+                    }
                 }
 
                 @Override
@@ -1427,8 +1433,7 @@ public class Camera2Engine extends CameraBaseEngine implements
         int min = Math.round(mCameraOptions.getPreviewFrameRateMinValue());
         int max = Math.round(mCameraOptions.getPreviewFrameRateMaxValue());
         for (Range<Integer> fpsRange : fpsRanges) {
-            if (!fpsRange.contains(min)) continue;
-            if (!fpsRange.contains(max)) continue;
+            if (!fpsRange.contains(min) && !fpsRange.contains(max)) continue;
             if (!FpsRangeValidator.validate(fpsRange)) continue;
             results.add(fpsRange);
         }
