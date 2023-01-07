@@ -1,0 +1,3 @@
+<resources>
+    <dimen name="camera_preview_header_height">50dp</dimen>
+</resources>

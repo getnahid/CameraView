@@ -105,7 +105,6 @@ public class CameraView {
     private Engine mEngine;
     private Filter mPendingFilter;
     private int mFrameProcessingExecutors;
-    private int mActiveGestures;
 
     // Components
     private Handler mUiHandler;
@@ -205,7 +204,7 @@ public class CameraView {
         int frameFormat = preference.getInt(KEY_CAMERA_FRAME_PROCESSING_FORMAT, 0);
         int framePoolSize = preference.getInt(KEY_CAMERA_FRAME_PROCESSING_POOL_SIZE, DEFAULT_FRAME_PROCESSING_POOL_SIZE);
         int frameExecutors = preference.getInt(KEY_CAMERA_FRAME_PROCESSING_EXECUTORS, DEFAULT_FRAME_PROCESSING_EXECUTORS);
-        boolean drawHardwareOverlays = preference.getBoolean(KEY_CAMERA_DRAW_HARDWARE_OVERLAYS, flase);
+        boolean drawHardwareOverlays = preference.getBoolean(KEY_CAMERA_DRAW_HARDWARE_OVERLAYS, false);
 
         // Size selectors and gestures
 //        SizeSelectorParser sizeSelectors = new SizeSelectorParser(a);
