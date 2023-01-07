@@ -242,7 +242,7 @@ public class Camera2Engine extends CameraBaseEngine implements
     /**
      * Applies the repeating request builder to the preview, assuming we actually have a preview
      * running. Can be called after changing parameters to the builder.
-     * <p>
+     *
      * To apply a new builder (for example switch between TEMPLATE_PREVIEW and TEMPLATE_RECORD)
      * it should be set before calling this method, for example by calling
      * {@link #createRepeatingRequestBuilder(int)}.
@@ -510,7 +510,7 @@ public class Camera2Engine extends CameraBaseEngine implements
 
         // Compute sizes.
         // TODO preview stream should never be bigger than 1920x1080 as per
-        //  CameraDevice.createCaptureSession. This should be probably be applied
+        //  CameraDevice.createCaptureSession. This should probably be applied
         //  before all the other external selectors, to treat it as a hard limit.
         //  OR: pass an int into these functions to be able to take smaller dims
         //  when session configuration fails
@@ -628,8 +628,15 @@ public class Camera2Engine extends CameraBaseEngine implements
 
                 @Override
                 public void onConfigureFailed(@NonNull CameraCaptureSession session) {
-                    // This SHOULD be a library error so we throw a RuntimeException.
                     String message = LOG.e("onConfigureFailed! Session", session);
+                    Throwable cause = new RuntimeException(message);
+//                    if (!task.getTask().isComplete()) {
+//                        task.trySetException(new CameraException(cause,
+//                                CameraException.REASON_FAILED_TO_START_PREVIEW));
+//                    } else {
+//                        // Like onStartEngine.onError
+//                        throw new CameraException(CameraException.REASON_DISCONNECTED);
+//                    }
                     //throw new RuntimeException(message);
                     throw new CameraException(new RuntimeException(message), CameraException.REASON_CAMERA2ENGINE_SUPPORT_FAILED);
                 }
@@ -1188,14 +1195,14 @@ public class Camera2Engine extends CameraBaseEngine implements
      * - {@link CaptureRequest#CONTROL_AE_MODE_ON}
      * - {@link CaptureRequest#CONTROL_AE_MODE_ON_AUTO_FLASH}
      * - {@link CaptureRequest#CONTROL_AE_MODE_ON_ALWAYS_FLASH}
-     * <p>
+     *
      * The API offers a high level control through {@link CaptureRequest#CONTROL_AE_MODE},
      * which is what the mapper looks at. It will trigger (if specified) flash only for
      * still captures which is exactly what we want.
-     * <p>
+     *
      * However, we set CONTROL_AE_MODE to ON/OFF (depending
      * on which is available) with both {@link Flash#OFF} and {@link Flash#TORCH}.
-     * <p>
+     *
      * When CONTROL_AE_MODE is ON or OFF, the low level control, called
      * {@link CaptureRequest#FLASH_MODE}, becomes effective, and that's where we can actually
      * distinguish between a turned off flash and a torch flash.
@@ -1481,8 +1488,7 @@ public class Camera2Engine extends CameraBaseEngine implements
         int min = Math.round(mCameraOptions.getPreviewFrameRateMinValue());
         int max = Math.round(mCameraOptions.getPreviewFrameRateMaxValue());
         for (Range<Integer> fpsRange : fpsRanges) {
-            if (!fpsRange.contains(min)) continue;
-            if (!fpsRange.contains(max)) continue;
+            if (!fpsRange.contains(min) && !fpsRange.contains(max)) continue;
             if (!FpsRangeValidator.validate(fpsRange)) continue;
             results.add(fpsRange);
         }
