@@ -116,7 +116,6 @@ public class CameraPreviewView extends FrameLayout implements LifecycleObserver 
     private boolean activeSmallPreview;
     private WindowManager windowManager;
     private CameraView cameraView;
-    private int mActiveGestures;
 
     public CameraPreviewView(@NonNull Context context, CameraView cameraView, WindowManager windowManager, CameraEngine cameraEngine, CameraView.CameraCallbacks cameraCallbacks, Preview preview, GestureParser gestureParser, SharedPreferences preference) {
         super(context);
@@ -643,9 +642,12 @@ public class CameraPreviewView extends FrameLayout implements LifecycleObserver 
 
     private String ms(int mode) {
         switch (mode) {
-            case AT_MOST: return "AT_MOST";
-            case EXACTLY: return "EXACTLY";
-            case UNSPECIFIED: return "UNSPECIFIED";
+            case AT_MOST:
+                return "AT_MOST";
+            case EXACTLY:
+                return "EXACTLY";
+            case UNSPECIFIED:
+                return "UNSPECIFIED";
         }
         return null;
     }
@@ -653,16 +655,16 @@ public class CameraPreviewView extends FrameLayout implements LifecycleObserver 
     /**
      * Measuring is basically controlled by layout params width and height.
      * The basic semantics are:
-     *
+     * <p>
      * - MATCH_PARENT: CameraView should completely fill this dimension, even if this might mean
-     *                 not respecting the preview aspect ratio.
+     * not respecting the preview aspect ratio.
      * - WRAP_CONTENT: CameraView should try to adapt this dimension to respect the preview
-     *                 aspect ratio.
-     *
+     * aspect ratio.
+     * <p>
      * When both dimensions are MATCH_PARENT, CameraView will fill its
      * parent no matter the preview. Thanks to what happens in {@link CameraPreview}, this acts like
      * a CENTER CROP scale type.
-     *
+     * <p>
      * When both dimensions are WRAP_CONTENT, CameraView will take the biggest dimensions that
      * fit the preview aspect ratio. This acts like a CENTER INSIDE scale type.
      */
@@ -707,7 +709,7 @@ public class CameraPreviewView extends FrameLayout implements LifecycleObserver 
         LOG.i("onMeasure:", "requested dimensions are ("
                 + widthValue + "[" + ms(widthMode) + "]x"
                 + heightValue + "[" + ms(heightMode) + "])");
-        LOG.i("onMeasure:",  "previewSize is", "("
+        LOG.i("onMeasure:", "previewSize is", "("
                 + previewWidth + "x" + previewHeight + ")");
 
         // (1) If we have fixed dimensions (either 300dp or MATCH_PARENT), there's nothing we
@@ -806,15 +808,15 @@ public class CameraPreviewView extends FrameLayout implements LifecycleObserver 
      * Maps a {@link Gesture} to a certain gesture action.
      * For example, you can assign zoom control to the pinch gesture by just calling:
      * <code>
-     *     cameraView.mapGesture(Gesture.PINCH, GestureAction.ZOOM);
+     * cameraView.mapGesture(Gesture.PINCH, GestureAction.ZOOM);
      * </code>
-     *
+     * <p>
      * Not all actions can be assigned to a certain gesture. For example, zoom control can't be
      * assigned to the Gesture.TAP gesture. Look at {@link Gesture} to know more.
      * This method returns false if they are not assignable.
      *
      * @param gesture which gesture to map
-     * @param action which action should be assigned
+     * @param action  which action should be assigned
      * @return true if this action could be assigned to this gesture
      */
     public boolean mapGesture(@NonNull Gesture gesture, @NonNull GestureAction action) {
@@ -840,12 +842,6 @@ public class CameraPreviewView extends FrameLayout implements LifecycleObserver 
                                     mGestureMap.get(Gesture.SCROLL_VERTICAL) != none);
                     break;
             }
-
-            mActiveGestures = 0;
-            for(GestureAction act : mGestureMap.values()) {
-                mActiveGestures += act == GestureAction.NONE ? 0 : 1;
-            }
-
             return true;
         }
         mapGesture(gesture, none);
@@ -854,6 +850,7 @@ public class CameraPreviewView extends FrameLayout implements LifecycleObserver 
 
     /**
      * Clears any action mapped to the given gesture.
+     *
      * @param gesture which gesture to clear
      */
     public void clearGesture(@NonNull Gesture gesture) {
@@ -874,8 +871,7 @@ public class CameraPreviewView extends FrameLayout implements LifecycleObserver 
 
     @Override
     public boolean onInterceptTouchEvent(MotionEvent ev) {
-        // Steal our own events if gestures are enabled
-        return mActiveGestures > 0;
+        return true; // Steal our own events.
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -905,8 +901,8 @@ public class CameraPreviewView extends FrameLayout implements LifecycleObserver 
     }
 
     // Some gesture layout detected a gesture. It's not known at this moment:
-// (1) if it was mapped to some action (we check here)
-// (2) if it's supported by the camera (CameraEngine checks)
+    // (1) if it was mapped to some action (we check here)
+    // (2) if it's supported by the camera (CameraEngine checks)
     private void onGesture(@NonNull GestureFinder source, @NonNull CameraOptions options) {
         Gesture gesture = source.getGesture();
         GestureAction action = mGestureMap.get(gesture);
@@ -914,10 +910,6 @@ public class CameraPreviewView extends FrameLayout implements LifecycleObserver 
         float oldValue, newValue;
         //noinspection ConstantConditions
         switch (action) {
-
-            case TAKE_PICTURE_SNAPSHOT:
-                //takePictureSnapshot();
-                break;
 
             case TAKE_PICTURE:
                 //takePicture();

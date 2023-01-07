@@ -629,7 +629,7 @@ public class Camera2Engine extends CameraBaseEngine implements
                 @Override
                 public void onConfigureFailed(@NonNull CameraCaptureSession session) {
                     String message = LOG.e("onConfigureFailed! Session", session);
-//                    Throwable cause = new RuntimeException(message);
+                    Throwable cause = new RuntimeException(message);
 //                    if (!task.getTask().isComplete()) {
 //                        task.trySetException(new CameraException(cause,
 //                                CameraException.REASON_FAILED_TO_START_PREVIEW));
