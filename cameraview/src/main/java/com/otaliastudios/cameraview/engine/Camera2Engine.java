@@ -280,7 +280,7 @@ public class Camera2Engine extends CameraBaseEngine implements
                         "currentThread:", Thread.currentThread().getName(),
                         "state:", getState(),
                         "targetState:", getTargetState());
-                throw new CameraException(CameraException.REASON_CAMERA_SURFACE_VIEW_IS_NOT_AVAILABLE);
+                throw new CameraException(CameraException.REASON_UNKNOWN);
             }
         }
     }
@@ -387,6 +387,8 @@ public class Camera2Engine extends CameraBaseEngine implements
             // This should never happen, I don't see how it could crash here.
             // However, let's launch an unrecoverable exception.
             throw createCameraException(e);
+        } catch (Exception e) {
+            throw new CameraException(e, CameraException.REASON_UNKNOWN_CAMERA_ID);
         }
         LOG.i("collectCameraInfo", "Facing:", facing,
                 "Internal:", internalFacing,
@@ -640,7 +642,7 @@ public class Camera2Engine extends CameraBaseEngine implements
             }, null);
         } catch (Exception e) {
             //throw createCameraException(e);
-            throw new CameraException(e, CameraException.REASON_CAMERA_SURFACE_VIEW_IS_NOT_AVAILABLE);
+            throw new CameraException(e, CameraException.REASON_UNKNOWN);
         }
         return task.getTask();
     }

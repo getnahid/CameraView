@@ -6,6 +6,7 @@ import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaCodecList;
 import android.media.MediaFormat;
+import android.os.Build;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -68,8 +69,7 @@ public class DeviceEncoders {
     private final static CameraLogger LOG = CameraLogger.create(TAG);
 
     @VisibleForTesting
-    //static boolean ENABLED = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N;
-    static boolean ENABLED = true;
+    static boolean ENABLED = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N;
 
     public final static int MODE_RESPECT_ORDER = 0;
     public final static int MODE_PREFER_HARDWARE = 1;
@@ -109,7 +109,7 @@ public class DeviceEncoders {
                           int audioOffset, boolean isUsingCamera2Api) {
         // We could still get a list of MediaCodecInfo for API >= 16, but it seems that the APIs
         // for querying the availability of a specified MediaFormat were only added in 21 anyway.
-        ENABLED = isUsingCamera2Api;
+        // ENABLED = isUsingCamera2Api;
         if (ENABLED) {
             List<MediaCodecInfo> encoders = getDeviceEncoders();
             mVideoEncoder = findDeviceEncoder(encoders, videoType, mode, videoOffset);

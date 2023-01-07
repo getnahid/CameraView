@@ -10,17 +10,18 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.PointF;
-import android.graphics.Rect;
-import android.graphics.RectF;
 import android.location.Location;
 import android.media.MediaActionSound;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.Gravity;
+import android.view.WindowManager;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
+import androidx.constraintlayout.solver.widgets.Rectangle;
 
 import com.otaliastudios.cameraview.controls.Audio;
 import com.otaliastudios.cameraview.controls.AudioCodec;
@@ -49,7 +50,10 @@ import com.otaliastudios.cameraview.frame.FrameProcessor;
 import com.otaliastudios.cameraview.gesture.Gesture;
 import com.otaliastudios.cameraview.gesture.GestureAction;
 import com.otaliastudios.cameraview.gesture.GestureFinder;
+import com.otaliastudios.cameraview.gesture.GestureParser;
 import com.otaliastudios.cameraview.internal.OrientationHelper;
+import com.otaliastudios.cameraview.markers.AutoFocusTrigger;
+import com.otaliastudios.cameraview.markers.MarkerLayout;
 import com.otaliastudios.cameraview.overlay.OverlayLayout;
 import com.otaliastudios.cameraview.size.Size;
 import com.otaliastudios.cameraview.size.SizeSelector;
@@ -120,10 +124,12 @@ public class CameraView {
     // Threading
     //private WorkerHandler mFrameProcessorsHandler;
     private Context context;
-    private CameraViewParent cameraViewParent;
+    private CameraPreviewView cameraPreviewView;
     private ControlParser controlParser;
     private SizeSelectorParser sizeSelectors;
     @VisibleForTesting OverlayLayout mOverlayLayout;
+
+    private GestureParser gestureParser;
 
     public static final String KEY_CAMERA_PLAY_SOUND = "CameraView_cameraPlaySounds";
     public static final String KEY_CAMERA_DEVICE_ORIENTATION = "CameraView_cameraUseDeviceOrientation";
@@ -152,7 +158,7 @@ public class CameraView {
         initialize(context);
     }
 
-    public ControlParser getControlParser(){
+    public ControlParser getControlParser() {
         return controlParser;
     }
 
@@ -169,12 +175,13 @@ public class CameraView {
         //TypedArray a = context.getTheme().obtainStyledAttributes(attrs, R.styleable.CameraView, 0, 0);
         preference = context.getSharedPreferences("camera_view", MODE_PRIVATE);
         controlParser = new ControlParser(context, preference);
+        gestureParser = new GestureParser(preference);
 
         // Self managed
         boolean playSounds = preference.getBoolean(KEY_CAMERA_PLAY_SOUND, DEFAULT_PLAY_SOUNDS);
         mUseDeviceOrientation = getUseDeviceOrientation();
         mExperimental = preference.getBoolean(KEY_CAMERA_EXPERIMENTAL, true);
-        //mPreview = controls.getPreview();
+        mPreview = controlParser.getPreviewSurface();
         mEngine = controlParser.getEngine();
         mRequestPermissions = preference.getBoolean(KEY_CAMERA_REQUEST_PERMISSIONS, DEFAULT_REQUEST_PERMISSIONS);
 
@@ -252,17 +259,17 @@ public class CameraView {
 
         // Create the orientation helper
         mOrientationHelper = new OrientationHelper(context, mCameraCallbacks);
+
+        int startY = (int) context.getResources().getDimensionPixelSize(R.dimen.camera_preview_header_height);
+        zeroPreviewSizeRect.setBounds(0, startY, 1, 1);
+        windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
     }
 
-    public CameraEngine getCameraEngine(){
+    public CameraEngine getCameraEngine() {
         return mCameraEngine;
     }
 
-    public CameraCallbacks getCameraCallbacks(){
-        return mCameraCallbacks;
-    }
-
-    public SizeSelectorParser getSizeSelectorParser(){
+    public SizeSelectorParser getSizeSelectorParser() {
         return sizeSelectors;
     }
 
@@ -278,7 +285,7 @@ public class CameraView {
         mCameraEngine.setOverlay(mOverlayLayout);
     }
 
-    private Context getContext(){
+    private Context getContext() {
         return context;
     }
 
@@ -362,6 +369,10 @@ public class CameraView {
             mOrientationHelper.enable();
             mCameraEngine.getAngles().setDisplayOffset(mOrientationHelper.getLastDisplayOffset());
             mCameraEngine.start();
+
+            if (cameraPreviewView == null) {
+                addPreviewView();
+            }
         }
     }
 
@@ -429,6 +440,7 @@ public class CameraView {
     public void close() {
         //if (mInEditor) return;
         mCameraEngine.stop(false);
+        //removePreviewView();
         //if (mCameraPreview != null) mCameraPreview.onPause();
     }
 
@@ -443,8 +455,11 @@ public class CameraView {
         clearFrameProcessors();
         mCameraEngine.destroy(true);
         //if (mCameraPreview != null) mCameraPreview.onDestroy();
-        if(cameraViewParent != null){
-            cameraViewParent.destroy();
+
+        if (cameraPreviewView != null) {
+            cameraPreviewView.destroy();
+            windowManager.removeView(cameraPreviewView);
+            cameraPreviewView = null;
         }
     }
 
@@ -463,7 +478,7 @@ public class CameraView {
 
     /**
      * Shorthand for the appropriate set* method.
-     * For example, if control is a {@link Grid}, this calls {@link #setGrid(Grid)}.
+     * For example, if control is a {@link Grid}, this calls {@link CameraPreviewView#setGrid(Grid)}.
      *
      * @param control desired value
      */
@@ -477,7 +492,9 @@ public class CameraView {
         } else if (control instanceof Flash) {
             setFlash((Flash) control);
         } else if (control instanceof Grid) {
-            //setGrid((Grid) control);
+            if (cameraPreviewView != null) {
+                cameraPreviewView.setGrid((Grid) control);
+            }
         } else if (control instanceof Hdr) {
             setHdr((Hdr) control);
         } else if (control instanceof Mode) {
@@ -489,7 +506,9 @@ public class CameraView {
         } else if (control instanceof AudioCodec) {
             setAudioCodec((AudioCodec) control);
         } else if (control instanceof Preview) {
-            //setPreview((Preview) control);
+            if (cameraPreviewView != null) {
+                cameraPreviewView.setPreview((Preview) control);
+            }
         } else if (control instanceof Engine) {
             setEngine((Engine) control);
         } else if (control instanceof PictureFormat) {
@@ -499,7 +518,7 @@ public class CameraView {
 
     /**
      * Shorthand for the appropriate get* method.
-     * For example, if control class is a {@link Grid}, this calls {@link #getGrid()}.
+     * For example, if control class is a {@link Grid}, this calls {@link CameraPreviewView#getGrid()}.
      *
      * @param controlClass desired value class
      * @param <T> the class type
@@ -517,7 +536,11 @@ public class CameraView {
         } else if (controlClass == Flash.class) {
             return (T) getFlash();
         } else if (controlClass == Grid.class) {
-            return null;//(T) getGrid();
+            if (cameraPreviewView != null) {
+                return (T) cameraPreviewView.getGrid();
+            } else {
+                return null;
+            }
         } else if (controlClass == Hdr.class) {
             return (T) getHdr();
         } else if (controlClass == Mode.class) {
@@ -529,7 +552,11 @@ public class CameraView {
         } else if (controlClass == AudioCodec.class) {
             return (T) getAudioCodec();
         } else if (controlClass == Preview.class) {
-            return (T) null;//getPreview();
+            if (cameraPreviewView != null) {
+                return (T) cameraPreviewView.getPreview();
+            } else {
+                return null;
+            }
         } else if (controlClass == Engine.class) {
             return (T) getEngine();
         } else if (controlClass == PictureFormat.class) {
@@ -1636,7 +1663,8 @@ public class CameraView {
     class CameraCallbacks implements
             CameraEngine.Callback,
             OrientationHelper.Callback,
-            GestureFinder.Controller {
+            GestureFinder.Controller,
+            CameraPreviewView.CameraPreviewViewCallback {
 
         private final String TAG = CameraCallbacks.class.getSimpleName();
         private final CameraLogger LOG = CameraLogger.create(TAG);
@@ -1649,12 +1677,33 @@ public class CameraView {
 
         @Override
         public int getWidth() {
-            return cameraViewParent.getWidth();
+            if (cameraPreviewView == null) {
+                return 0;
+            }
+
+            return cameraPreviewView.getWidth();
         }
 
         @Override
         public int getHeight() {
-            return cameraViewParent.getHeight();
+            if (cameraPreviewView == null) {
+                return 0;
+            }
+
+            return cameraPreviewView.getHeight();
+        }
+
+        @Override
+        public void dispatchOnCameraBind() {
+            LOG.i("dispatchOnCameraBind");
+            mUiHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    for (CameraListener listener : mListeners) {
+                        listener.onCameraBind();
+                    }
+                }
+            });
         }
 
         @Override
@@ -1665,45 +1714,6 @@ public class CameraView {
                 public void run() {
                     for (CameraListener listener : mListeners) {
                         listener.onCameraOpened(options);
-                    }
-                }
-            });
-        }
-
-        @Override
-        public void dispatchOnCameraBinded() {
-            LOG.i("dispatchOnCameraBinded");
-            mUiHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    for (CameraListener listener : mListeners) {
-                        listener.onCameraBinded();
-                    }
-                }
-            });
-        }
-
-        @Override
-        public void dispatchHidePreview() {
-            LOG.i("dispatchOnVideoRecordingEnd");
-            mUiHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    for (CameraListener listener : mListeners) {
-                        listener.onHidePreview();
-                    }
-                }
-            });
-        }
-
-        @Override
-        public void dispatchStopVideoRecording() {
-            LOG.i("dispatchStopVideoRecording");
-            mUiHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    for (CameraListener listener : mListeners) {
-                        listener.stopVideoRecording();
                     }
                 }
             });
@@ -1740,8 +1750,8 @@ public class CameraView {
                 mUiHandler.post(new Runnable() {
                     @Override
                     public void run() {
-                        if(cameraViewParent != null)
-                            cameraViewParent.requestLayout();
+                        if (cameraPreviewView != null)
+                            cameraPreviewView.requestLayout();
                     }
                 });
             }
@@ -1797,15 +1807,17 @@ public class CameraView {
             mUiHandler.post(new Runnable() {
                 @Override
                 public void run() {
-//                    mMarkerLayout.onEvent(MarkerLayout.TYPE_AUTOFOCUS, new PointF[]{ point });
-//                    if (mAutoFocusMarker != null) {
-//                        AutoFocusTrigger trigger = gesture != null ?
-//                                AutoFocusTrigger.GESTURE : AutoFocusTrigger.METHOD;
-//                        mAutoFocusMarker.onAutoFocusStart(trigger, point);
-//                    }
+                    if (cameraPreviewView != null) {
+                        cameraPreviewView.mMarkerLayout.onEvent(MarkerLayout.TYPE_AUTOFOCUS, new PointF[]{ point });
+                        if (cameraPreviewView.mAutoFocusMarker != null) {
+                            AutoFocusTrigger trigger = gesture != null ?
+                                    AutoFocusTrigger.GESTURE : AutoFocusTrigger.METHOD;
+                            cameraPreviewView.mAutoFocusMarker.onAutoFocusStart(trigger, point);
+                        }
 
-                    for (CameraListener listener : mListeners) {
-                        listener.onAutoFocusStart(point);
+                        for (CameraListener listener : mListeners) {
+                            listener.onAutoFocusStart(point);
+                        }
                     }
                 }
             });
@@ -1822,12 +1834,14 @@ public class CameraView {
                     if (success && mPlaySounds) {
                         playSound(MediaActionSound.FOCUS_COMPLETE);
                     }
-//
-//                    if (mAutoFocusMarker != null) {
-//                        AutoFocusTrigger trigger = gesture != null ?
-//                                AutoFocusTrigger.GESTURE : AutoFocusTrigger.METHOD;
-//                        mAutoFocusMarker.onAutoFocusEnd(trigger, success, point);
-//                    }
+
+                    if (cameraPreviewView != null) {
+                        if (cameraPreviewView.mAutoFocusMarker != null) {
+                            AutoFocusTrigger trigger = gesture != null ?
+                                    AutoFocusTrigger.GESTURE : AutoFocusTrigger.METHOD;
+                            cameraPreviewView.mAutoFocusMarker.onAutoFocusEnd(trigger, success, point);
+                        }
+                    }
 
                     for (CameraListener listener : mListeners) {
                         listener.onAutoFocusEnd(success, point);
@@ -1962,6 +1976,30 @@ public class CameraView {
                 public void run() {
                     for (CameraListener listener : mListeners) {
                         listener.onVideoRecordingEnd();
+                    }
+                }
+            });
+        }
+
+        @Override
+        public void onPreviewCancelButtonClicked() {
+            mUiHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    for (CameraListener listener : mListeners) {
+                        listener.onPreviewCancelButtonClicked();
+                    }
+                }
+            });
+        }
+
+        @Override
+        public void onPreviewStopRecordingButtonClicked() {
+            mUiHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    for (CameraListener listener : mListeners) {
+                        listener.onPreviewStopRecordingButtonClicked();
                     }
                 }
             });
@@ -2139,6 +2177,62 @@ public class CameraView {
      */
     public int getFrameProcessingExecutors() {
         return mFrameProcessingExecutors;
+    }
+
+    //endregion
+
+    // Preview
+
+    Rectangle zeroPreviewSizeRect = new Rectangle();
+    private WindowManager windowManager;
+
+    private void addPreviewView() {
+        cameraPreviewView = new CameraPreviewView(context, this, windowManager, mCameraEngine, mCameraCallbacks, mPreview, gestureParser, preference);
+        WindowManager.LayoutParams layoutParams = new WindowManager.LayoutParams();
+        layoutParams.x = zeroPreviewSizeRect.x;
+        layoutParams.y = zeroPreviewSizeRect.y;
+        layoutParams.height = zeroPreviewSizeRect.height;
+        layoutParams.width = zeroPreviewSizeRect.width;
+        layoutParams.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                // WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE |
+                //WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH|
+                | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+                | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON;
+        //layoutParams.format = PixelFormat.TRANSLUCENT;
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            layoutParams.type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
+        } else if (Build.VERSION.SDK_INT == Build.VERSION_CODES.N || Build.VERSION.SDK_INT == Build.VERSION_CODES.N_MR1) {
+            layoutParams.type = WindowManager.LayoutParams.TYPE_SYSTEM_ALERT;
+        } else {
+            layoutParams.type = WindowManager.LayoutParams.TYPE_TOAST;
+        }
+
+        layoutParams.gravity = Gravity.START | Gravity.TOP;
+
+        try {
+            windowManager.addView(cameraPreviewView, layoutParams);
+        } catch (WindowManager.BadTokenException exception) {
+            cameraPreviewView = null;
+            mCameraCallbacks.dispatchError(new CameraException(exception, CameraException.REASON_CAMERA_PERMISSION_DENIED_FOR_WINDOW));
+        }
+    }
+
+    public CameraPreviewView getCameraPreviewView() {
+        return cameraPreviewView;
+    }
+
+    public GestureParser getGestureParser() {
+        return gestureParser;
+    }
+
+    public void applyGesture() {
+        if (cameraPreviewView != null) {
+            cameraPreviewView.applyGesture();
+        }
     }
 
     //endregion

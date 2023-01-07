@@ -8,7 +8,7 @@ import com.otaliastudios.cameraview.CameraView;
 /**
  * The preview engine to be used.
  *
- * @see CameraView#setPreview(Preview)
+ * @see com.otaliastudios.cameraview.CameraPreviewView#setPreview(Preview)
  */
 public enum Preview implements Control {
 
@@ -41,7 +41,7 @@ public enum Preview implements Control {
         this.value = value;
     }
 
-    int value() {
+    public int value() {
         return value;
     }
 

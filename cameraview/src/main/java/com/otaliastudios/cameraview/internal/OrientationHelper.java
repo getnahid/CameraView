@@ -111,7 +111,14 @@ public class OrientationHelper {
             // Without the handler, this can crash if called from a thread without a looper
             manager.registerDisplayListener(mDisplayOffsetListener, mHandler);
         }
-        mDeviceOrientationListener.enable();
+
+        // Caused by java.lang.IllegalStateException
+        // register failed, the sensor listeners size has exceeded the maximum limit 128
+        try{
+            mDeviceOrientationListener.enable();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -120,7 +127,15 @@ public class OrientationHelper {
     public void disable() {
         if (!mEnabled) return;
         mEnabled = false;
-        mDeviceOrientationListener.disable();
+
+        // Caused by java.lang.IllegalStateException
+        // register failed, the sensor listeners size has exceeded the maximum limit 128
+        try{
+            mDeviceOrientationListener.disable();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
         if (Build.VERSION.SDK_INT >= 17) {
             DisplayManager manager = (DisplayManager)
                     mContext.getSystemService(Context.DISPLAY_SERVICE);

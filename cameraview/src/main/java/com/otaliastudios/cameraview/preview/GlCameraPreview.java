@@ -19,6 +19,7 @@ import com.otaliastudios.cameraview.filter.Filter;
 import com.otaliastudios.cameraview.filter.NoFilter;
 import com.otaliastudios.cameraview.size.AspectRatio;
 
+import java.util.Date;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -157,6 +158,8 @@ public class GlCameraPreview extends CameraPreview<GLSurfaceView, SurfaceTexture
                     }
                 }
             });
+
+            mOutputTextureDrawer.draw(new Date().getTime());
 
             // Since we are using GLSurfaceView.RENDERMODE_WHEN_DIRTY, we must notify
             // the SurfaceView of dirtyness, so that it draws again. This is how it's done.

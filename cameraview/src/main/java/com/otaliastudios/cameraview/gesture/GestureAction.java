@@ -1,7 +1,7 @@
 package com.otaliastudios.cameraview.gesture;
 
 
-import com.otaliastudios.cameraview.CameraView;
+import com.otaliastudios.cameraview.CameraPreviewView;
 import com.otaliastudios.cameraview.filter.Filter;
 import com.otaliastudios.cameraview.markers.AutoFocusMarker;
 
@@ -10,7 +10,7 @@ import androidx.annotation.Nullable;
 
 /**
  * Gestures actions are actions over camera controls that can be mapped to certain gestures over
- * the screen, using XML attributes or {@link CameraView#mapGesture(Gesture, GestureAction)}.
+ * the screen, using XML attributes or {@link CameraPreviewView#mapGesture(Gesture, GestureAction)}.
  *
  * Not every gesture can control a certain action. For example, pinch gestures can only control
  * continuous values, such as zoom or AE correction. Single point gestures, on the other hand,
@@ -30,7 +30,7 @@ public enum GestureAction {
      * - {@link Gesture#TAP}
      * - {@link Gesture#LONG_TAP}
      *
-     * To control marker drawing, please see {@link CameraView#setAutoFocusMarker(AutoFocusMarker)}
+     * To control marker drawing, please see {@link CameraPreviewView#setAutoFocusMarker(AutoFocusMarker)}
      */
     AUTO_FOCUS(1, GestureType.ONE_SHOT),
 
@@ -92,11 +92,11 @@ public enum GestureAction {
      */
     FILTER_CONTROL_2(7, GestureType.CONTINUOUS);
 
-    final static GestureAction DEFAULT_PINCH = NONE;
-    final static GestureAction DEFAULT_TAP = NONE;
+    final static GestureAction DEFAULT_PINCH = ZOOM;
+    final static GestureAction DEFAULT_TAP = AUTO_FOCUS;
     final static GestureAction DEFAULT_LONG_TAP = NONE;
-    final static GestureAction DEFAULT_SCROLL_HORIZONTAL = NONE;
-    final static GestureAction DEFAULT_SCROLL_VERTICAL = NONE;
+    final static GestureAction DEFAULT_SCROLL_HORIZONTAL = EXPOSURE_CORRECTION;
+    final static GestureAction DEFAULT_SCROLL_VERTICAL = EXPOSURE_CORRECTION;
 
     private int value;
     private GestureType type;
@@ -106,7 +106,7 @@ public enum GestureAction {
         this.type = type;
     }
 
-    int value() {
+    public int value() {
         return value;
     }
 

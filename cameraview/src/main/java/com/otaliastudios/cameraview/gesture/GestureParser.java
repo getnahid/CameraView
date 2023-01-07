@@ -6,12 +6,7 @@ import android.content.SharedPreferences;
  * Parses gestures from XML attributes.
  */
 public class GestureParser {
-
-    private int tapAction;
-    private int longTapAction;
-    private int pinchAction;
-    private int horizontalScrollAction;
-    private int verticalScrollAction;
+    private SharedPreferences preference;
 
     public static final String KEY_CAMERA_GESTURE_TAP = "CameraView_cameraGestureTap";
     public static final String KEY_CAMERA_GESTURE_LONG_TAP = "CameraView_cameraGestureLongTap";
@@ -20,35 +15,51 @@ public class GestureParser {
     public static final String KEY_CAMERA_GESTURE_SCROLL_VERTICAL = "CameraView_cameraGestureScrollVertical";
 
     public GestureParser(SharedPreferences preference) {
-        this.tapAction = preference.getInt(KEY_CAMERA_GESTURE_TAP, GestureAction.DEFAULT_TAP.value());
-        this.longTapAction = preference.getInt(KEY_CAMERA_GESTURE_LONG_TAP, GestureAction.DEFAULT_LONG_TAP.value());
-        this.pinchAction = preference.getInt(KEY_CAMERA_GESTURE_PINCH, GestureAction.DEFAULT_PINCH.value());
-        this.horizontalScrollAction = preference.getInt(KEY_CAMERA_GESTURE_SCROLL_HORIZONTAL, GestureAction.DEFAULT_SCROLL_HORIZONTAL.value());
-        this.verticalScrollAction = preference.getInt(KEY_CAMERA_GESTURE_SCROLL_VERTICAL, GestureAction.DEFAULT_SCROLL_VERTICAL.value());
-    }
-
-    private GestureAction get(int which) {
-        return GestureAction.fromValue(which);
+        this.preference = preference;
     }
 
     public GestureAction getTapAction() {
-        return get(tapAction);
+        int value = preference.getInt(KEY_CAMERA_GESTURE_TAP, GestureAction.DEFAULT_TAP.value());
+        return GestureAction.fromValue(value);
+    }
+
+    public void setTapAction(int value) {
+        preference.edit().putInt(KEY_CAMERA_GESTURE_TAP, value).apply();
     }
 
     public GestureAction getLongTapAction() {
-        return get(longTapAction);
+        int value = preference.getInt(KEY_CAMERA_GESTURE_LONG_TAP, GestureAction.DEFAULT_LONG_TAP.value());
+        return GestureAction.fromValue(value);
+    }
+
+    public void setLongTapAction(int value) {
+        preference.edit().putInt(KEY_CAMERA_GESTURE_LONG_TAP, value).apply();
     }
 
     public GestureAction getPinchAction() {
-        return get(pinchAction);
+        int value = preference.getInt(KEY_CAMERA_GESTURE_PINCH, GestureAction.DEFAULT_PINCH.value());
+        return GestureAction.fromValue(value);
+    }
+
+    public void setPinchAction(int value) {
+        preference.edit().putInt(KEY_CAMERA_GESTURE_PINCH, value).apply();
     }
 
     public GestureAction getHorizontalScrollAction() {
-        return get(horizontalScrollAction);
+        int value = preference.getInt(KEY_CAMERA_GESTURE_SCROLL_HORIZONTAL, GestureAction.DEFAULT_SCROLL_HORIZONTAL.value());
+        return GestureAction.fromValue(value);
+    }
+
+    public void setHorizontalScrollAction(int value) {
+        preference.edit().putInt(KEY_CAMERA_GESTURE_SCROLL_HORIZONTAL, value).apply();
     }
 
     public GestureAction getVerticalScrollAction() {
-        return get(verticalScrollAction);
+        int value = preference.getInt(KEY_CAMERA_GESTURE_SCROLL_VERTICAL, GestureAction.DEFAULT_SCROLL_VERTICAL.value());
+        return GestureAction.fromValue(value);
     }
 
+    public void setVerticalScrollAction(int value) {
+        preference.edit().putInt(KEY_CAMERA_GESTURE_SCROLL_VERTICAL, value).apply();
+    }
 }

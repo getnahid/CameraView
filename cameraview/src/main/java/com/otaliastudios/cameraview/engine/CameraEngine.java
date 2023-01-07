@@ -8,10 +8,6 @@ import android.location.Location;
 import android.os.Handler;
 import android.os.Looper;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.annotation.VisibleForTesting;
-
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.SuccessContinuation;
@@ -20,7 +16,6 @@ import com.google.android.gms.tasks.Tasks;
 import com.otaliastudios.cameraview.CameraException;
 import com.otaliastudios.cameraview.CameraLogger;
 import com.otaliastudios.cameraview.CameraOptions;
-import com.otaliastudios.cameraview.CameraViewParent;
 import com.otaliastudios.cameraview.PictureResult;
 import com.otaliastudios.cameraview.controls.AudioCodec;
 import com.otaliastudios.cameraview.controls.AudioSource;
@@ -41,24 +36,11 @@ import com.otaliastudios.cameraview.preview.CameraPreview;
 import com.otaliastudios.cameraview.controls.Audio;
 import com.otaliastudios.cameraview.controls.Facing;
 import com.otaliastudios.cameraview.controls.Flash;
+import com.otaliastudios.cameraview.gesture.Gesture;
 import com.otaliastudios.cameraview.controls.Hdr;
 import com.otaliastudios.cameraview.controls.Mode;
-import com.otaliastudios.cameraview.controls.PictureFormat;
 import com.otaliastudios.cameraview.controls.VideoCodec;
 import com.otaliastudios.cameraview.controls.WhiteBalance;
-import com.otaliastudios.cameraview.engine.offset.Angles;
-import com.otaliastudios.cameraview.engine.offset.Reference;
-import com.otaliastudios.cameraview.engine.orchestrator.CameraOrchestrator;
-import com.otaliastudios.cameraview.engine.orchestrator.CameraState;
-import com.otaliastudios.cameraview.engine.orchestrator.CameraStateOrchestrator;
-import com.otaliastudios.cameraview.frame.Frame;
-import com.otaliastudios.cameraview.frame.FrameManager;
-import com.otaliastudios.cameraview.gesture.Gesture;
-import com.otaliastudios.cameraview.internal.WorkerHandler;
-import com.otaliastudios.cameraview.metering.MeteringRegions;
-import com.otaliastudios.cameraview.overlay.Overlay;
-import com.otaliastudios.cameraview.picture.PictureRecorder;
-import com.otaliastudios.cameraview.preview.CameraPreview;
 import com.otaliastudios.cameraview.size.Size;
 import com.otaliastudios.cameraview.size.SizeSelector;
 import com.otaliastudios.cameraview.video.VideoRecorder;
@@ -132,6 +114,7 @@ public abstract class CameraEngine implements
 
     public interface Callback {
         @NonNull Context getContext();
+        void dispatchOnCameraBind();
         void dispatchOnCameraOpened(@NonNull CameraOptions options);
         void dispatchOnCameraClosed();
         void onCameraPreviewStreamSizeChanged();
@@ -147,9 +130,6 @@ public abstract class CameraEngine implements
         void dispatchError(CameraException exception);
         void dispatchOnVideoRecordingStart();
         void dispatchOnVideoRecordingEnd();
-        void dispatchOnCameraBinded();
-        void dispatchHidePreview();
-        void dispatchStopVideoRecording();
     }
 
     protected static final String TAG = CameraEngine.class.getSimpleName();
@@ -159,7 +139,6 @@ public abstract class CameraEngine implements
 
     private WorkerHandler mHandler;
     @VisibleForTesting Handler mCrashHandler;
-    private CameraViewParent.CameraParentCallback cameraParentCallback;
     private final Callback mCallback;
     private final CameraStateOrchestrator mOrchestrator
             = new CameraStateOrchestrator(new CameraOrchestrator.Callback() {
@@ -333,7 +312,9 @@ public abstract class CameraEngine implements
                     }
                 });
         try {
-            boolean success = latch.await(2, TimeUnit.SECONDS);
+            // get crash if pass 6 as a param
+            // Making destroy time to 2 sec, will check user reviews for that
+            boolean success = latch.await(6, TimeUnit.SECONDS);
             if (!success) {
                 // This thread is likely stuck. The reason might be deadlock issues in the internal
                 // camera implementation, at least in emulators: see Camera1Engine and Camera2Engine
@@ -357,26 +338,17 @@ public abstract class CameraEngine implements
     public void restart() {
         LOG.i("RESTART:", "scheduled. State:", getState());
         stop(false);
-        start(true);
+        start();
     }
 
     @NonNull
     public Task<Void> start() {
-        return start(false);
-    }
-
-    @NonNull
-    public Task<Void> start(boolean showPreview) {
         LOG.i("START:", "scheduled. State:", getState());
         Task<Void> engine = startEngine();
         startBind();
-
-        if(showPreview){
-            startPreview(false);
-        }
+        startPreview();
         return engine;
     }
-
 
     @NonNull
     public Task<Void> stop(final boolean swallowExceptions) {
@@ -393,7 +365,7 @@ public abstract class CameraEngine implements
         stopPreview(false);
         stopBind(false);
         startBind();
-        return startPreview(false);
+        return startPreview();
     }
 
     @SuppressWarnings({"WeakerAccess", "UnusedReturnValue"})
@@ -401,7 +373,7 @@ public abstract class CameraEngine implements
     protected Task<Void> restartPreview() {
         LOG.i("RESTART PREVIEW:", "scheduled. State:", getState());
         stopPreview(false);
-        return startPreview(false);
+        return startPreview();
     }
 
     //endregion
@@ -414,15 +386,15 @@ public abstract class CameraEngine implements
         return mOrchestrator.scheduleStateChange(CameraState.OFF, CameraState.ENGINE,
                 true,
                 new Callable<Task<CameraOptions>>() {
-            @Override
-            public Task<CameraOptions> call() {
-                if (!collectCameraInfo(getFacing())) {
-                    LOG.e("onStartEngine:", "No camera available for facing", getFacing());
-                    throw new CameraException(CameraException.REASON_NO_CAMERA);
-                }
-                return onStartEngine();
-            }
-        }).onSuccessTask(new SuccessContinuation<CameraOptions, Void>() {
+                    @Override
+                    public Task<CameraOptions> call() {
+                        if (!collectCameraInfo(getFacing())) {
+                            LOG.e("onStartEngine:", "No camera available for facing", getFacing());
+                            throw new CameraException(CameraException.REASON_NO_CAMERA);
+                        }
+                        return onStartEngine();
+                    }
+                }).onSuccessTask(new SuccessContinuation<CameraOptions, Void>() {
             @NonNull
             @Override
             public Task<Void> then(@Nullable CameraOptions cameraOptions) {
@@ -441,11 +413,11 @@ public abstract class CameraEngine implements
         return mOrchestrator.scheduleStateChange(CameraState.ENGINE, CameraState.OFF,
                 !swallowExceptions,
                 new Callable<Task<Void>>() {
-            @Override
-            public Task<Void> call() {
-                return onStopEngine();
-            }
-        }).addOnSuccessListener(new OnSuccessListener<Void>() {
+                    @Override
+                    public Task<Void> call() {
+                        return onStopEngine();
+                    }
+                }).addOnSuccessListener(new OnSuccessListener<Void>() {
             @Override
             public void onSuccess(Void aVoid) {
                 // Put this on the outer task so we're sure it's called after getState() is OFF.
@@ -499,15 +471,20 @@ public abstract class CameraEngine implements
         return mOrchestrator.scheduleStateChange(CameraState.ENGINE, CameraState.BIND,
                 true,
                 new Callable<Task<Void>>() {
-            @Override
-            public Task<Void> call() {
-                if (getPreview() != null && getPreview().hasSurface()) {
-                    return onStartBind();
-                } else {
-                    return Tasks.forCanceled();
-                }
-            }
-        });
+                    @Override
+                    public Task<Void> call() {
+                        if (getPreview() != null && getPreview().hasSurface()) {
+                            return onStartBind().addOnSuccessListener(new OnSuccessListener<Void>() {
+                                @Override
+                                public void onSuccess(Void aVoid) {
+                                    mCallback.dispatchOnCameraBind();
+                                }
+                            });
+                        } else {
+                            return Tasks.forCanceled();
+                        }
+                    }
+                });
     }
 
     @SuppressWarnings("UnusedReturnValue")
@@ -517,11 +494,11 @@ public abstract class CameraEngine implements
         return mOrchestrator.scheduleStateChange(CameraState.BIND, CameraState.ENGINE,
                 !swallowExceptions,
                 new Callable<Task<Void>>() {
-            @Override
-            public Task<Void> call() {
-                return onStopBind();
-            }
-        });
+                    @Override
+                    public Task<Void> call() {
+                        return onStopBind();
+                    }
+                });
     }
 
     /**
@@ -548,41 +525,29 @@ public abstract class CameraEngine implements
 
     @NonNull
     @EngineThread
-    public Task<Void> startPreview(final boolean isSurfaceAvailable) {
+    private Task<Void> startPreview() {
         return mOrchestrator.scheduleStateChange(CameraState.BIND, CameraState.PREVIEW,
                 true,
                 new Callable<Task<Void>>() {
-            @Override
-            public Task<Void> call() {
-                if(isSurfaceAvailable && cameraParentCallback != null){
-
-                    mCrashHandler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            if(cameraParentCallback != null){
-                                cameraParentCallback.onSurfaceAvailableAndOnBinded();
-                            }
-                        }
-                    });
-                }
-
-                return onStartPreview();
-            }
-        });
+                    @Override
+                    public Task<Void> call() {
+                        return onStartPreview();
+                    }
+                });
     }
 
     @SuppressWarnings("UnusedReturnValue")
     @NonNull
     @EngineThread
-    public Task<Void> stopPreview(boolean swallowExceptions) {
+    private Task<Void> stopPreview(boolean swallowExceptions) {
         return mOrchestrator.scheduleStateChange(CameraState.PREVIEW, CameraState.BIND,
                 !swallowExceptions,
                 new Callable<Task<Void>>() {
-            @Override
-            public Task<Void> call() {
-                return onStopPreview();
-            }
-        });
+                    @Override
+                    public Task<Void> call() {
+                        return onStopPreview();
+                    }
+                });
     }
 
     /**
@@ -616,7 +581,7 @@ public abstract class CameraEngine implements
     public final void onSurfaceAvailable() {
         LOG.i("onSurfaceAvailable:", "Size is", getPreview().getSurfaceSize());
         startBind();
-        startPreview(true);
+        startPreview();
     }
 
     @Override
@@ -774,8 +739,5 @@ public abstract class CameraEngine implements
     public abstract void takeVideoSnapshot(@NonNull VideoResult.Stub stub, @NonNull File file);
     public abstract void stopVideo();
 
-    public void setCameraParentListener(CameraViewParent.CameraParentCallback cameraParentCallback) {
-        this.cameraParentCallback = cameraParentCallback;
-    }
     //endregion
 }

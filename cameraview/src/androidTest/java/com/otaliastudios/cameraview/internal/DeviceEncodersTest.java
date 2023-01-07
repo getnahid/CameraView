@@ -53,7 +53,8 @@ public class DeviceEncodersTest extends BaseTest {
                 "video/avc",
                 "audio/mp4a-latm",
                 0,
-                0);
+                0,
+                false);
     }
 
     @Test

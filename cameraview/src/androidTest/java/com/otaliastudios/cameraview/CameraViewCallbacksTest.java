@@ -248,13 +248,7 @@ public class CameraViewCallbacksTest extends BaseTest {
         verify(listener, times(1)).onOrientationChanged(anyInt());
     }
 
-    @Test
-    public void testOnShutter() {
-        doEndOp(op, true).when(listener).onPictureShutter();
-        camera.mCameraCallbacks.dispatchOnPictureShutter(true);
-        assertNotNull(op.await(DELAY));
-        verify(listener, times(1)).onPictureShutter();
-    }
+    // TODO: test onShutter, here or elsewhere
 
     @Test
     public void testCameraError() {

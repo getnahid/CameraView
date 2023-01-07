@@ -88,54 +88,53 @@ public class Camera1Options extends CameraOptions {
         // Video Sizes
         // As a safety measure, remove Sizes bigger than CamcorderProfile.highest
         //CamcorderProfile profile = CamcorderProfiles.get(cameraId,
-          //      new Size(Integer.MAX_VALUE, Integer.MAX_VALUE));
+        //      new Size(Integer.MAX_VALUE, Integer.MAX_VALUE));
         //CamcorderProfile profile = CamcorderProfile.get(cameraId, CamcorderProfile.QUALITY_HIGH);
         CamcorderProfile profile = CamcorderProfiles.get(cameraId,
-              new Size(Integer.MAX_VALUE, Integer.MAX_VALUE));
+                new Size(Integer.MAX_VALUE, Integer.MAX_VALUE));
         Size videoMaxSize = new Size(profile.videoFrameWidth, profile.videoFrameHeight);
 
-        for (int i = 0; i < sizeList.size(); i++) {
-            Size size = sizeList.get(i);
-            int camProfile = sizeToProfileMap.get(size.getHeight());
-            if (size.getWidth() <= videoMaxSize.getWidth()
-                    && size.getHeight() <= videoMaxSize.getHeight()) {
-                int width = flipSizes ? size.getHeight() : size.getWidth();
-                int height = flipSizes ? size.getWidth() : size.getHeight();
-                if(CamcorderProfile.hasProfile(cameraId, camProfile)){
+//        for (int i = 0; i < sizeList.size(); i++) {
+//            Size size = sizeList.get(i);
+//            int camProfile = sizeToProfileMap.get(size.getHeight());
+//            if (size.getWidth() <= videoMaxSize.getWidth()
+//                    && size.getHeight() <= videoMaxSize.getHeight()) {
+//                int width = flipSizes ? size.getHeight() : size.getWidth();
+//                int height = flipSizes ? size.getWidth() : size.getHeight();
+//                if(CamcorderProfile.hasProfile(cameraId, camProfile)){
+//                    supportedVideoSizes.add(new Size(width, height));
+//                    supportedVideoAspectRatio.add(AspectRatio.of(width, height));
+//                }
+//            }
+//        }
+//
+//        if(supportedVideoSizes.isEmpty()){
+        List<Camera.Size> vsizes = params.getSupportedVideoSizes();
+        if (vsizes != null) {
+            for (Camera.Size size : vsizes) {
+                if (size.width <= videoMaxSize.getWidth()
+                        && size.height <= videoMaxSize.getHeight()) {
+                    int width = flipSizes ? size.height : size.width;
+                    int height = flipSizes ? size.width : size.height;
+                    supportedVideoSizes.add(new Size(width, height));
+                    supportedVideoAspectRatio.add(AspectRatio.of(width, height));
+                }
+            }
+        } else {
+            // StackOverflow threads seems to agree that if getSupportedVideoSizes is null,
+            // previews can be used.
+            List<Camera.Size> fallback = params.getSupportedPreviewSizes();
+            for (Camera.Size size : fallback) {
+                if (size.width <= videoMaxSize.getWidth()
+                        && size.height <= videoMaxSize.getHeight()) {
+                    int width = flipSizes ? size.height : size.width;
+                    int height = flipSizes ? size.width : size.height;
                     supportedVideoSizes.add(new Size(width, height));
                     supportedVideoAspectRatio.add(AspectRatio.of(width, height));
                 }
             }
         }
-
-        if(supportedVideoSizes.isEmpty()){
-            List<Camera.Size> vsizes = params.getSupportedVideoSizes();
-            if (vsizes != null) {
-                for (Camera.Size size : vsizes) {
-                    if (size.width <= videoMaxSize.getWidth()
-                            && size.height <= videoMaxSize.getHeight()) {
-                        int width = flipSizes ? size.height : size.width;
-                        int height = flipSizes ? size.width : size.height;
-                        supportedVideoSizes.add(new Size(width, height));
-                        supportedVideoAspectRatio.add(AspectRatio.of(width, height));
-                    }
-                }
-            }
-            else {
-                // StackOverflow threads seems to agree that if getSupportedVideoSizes is null,
-                // previews can be used.
-                List<Camera.Size> fallback = params.getSupportedPreviewSizes();
-                for (Camera.Size size : fallback) {
-                    if (size.width <= videoMaxSize.getWidth()
-                            && size.height <= videoMaxSize.getHeight()) {
-                        int width = flipSizes ? size.height : size.width;
-                        int height = flipSizes ? size.width : size.height;
-                        supportedVideoSizes.add(new Size(width, height));
-                        supportedVideoAspectRatio.add(AspectRatio.of(width, height));
-                    }
-                }
-            }
-        }
+        //}
 
         // Preview FPS
         previewFrameRateMinValue = Float.MAX_VALUE;

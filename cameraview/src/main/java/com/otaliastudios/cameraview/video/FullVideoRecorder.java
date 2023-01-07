@@ -41,7 +41,6 @@ public abstract class FullVideoRecorder extends VideoRecorder {
     @SuppressWarnings("WeakerAccess") protected MediaRecorder mMediaRecorder;
     private CamcorderProfile mProfile;
     private boolean mMediaRecorderPrepared;
-    private SurfaceView surfaceView;
 
 
     FullVideoRecorder(@Nullable VideoResultListener listener) {
@@ -102,7 +101,13 @@ public abstract class FullVideoRecorder extends VideoRecorder {
         boolean hasAudio = audioChannels > 0;
         if (hasAudio) {
             if (stub.audioSource == AudioSource.CAMCORDER) {
-                mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.CAMCORDER);
+                try{
+                    mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.CAMCORDER);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    // In android 11 , for some devices setAudioSource as CAMCORDER make crashes in background.
+                }
+
             } else if (stub.audioSource == AudioSource.EXTERNAL_MIC) {
                 mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
             } else if (stub.audioSource == AudioSource.DEFAULT_AUDIO) {
@@ -387,9 +392,4 @@ public abstract class FullVideoRecorder extends VideoRecorder {
         mMediaRecorderPrepared = false;
         dispatchResult();
     }
-
-    public void setSurfaceView(SurfaceView view){
-        surfaceView = view;
-    }
-
 }

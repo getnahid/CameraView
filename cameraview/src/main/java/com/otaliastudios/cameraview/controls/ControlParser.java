@@ -2,7 +2,6 @@ package com.otaliastudios.cameraview.controls;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.os.Build;
 
 import androidx.annotation.NonNull;
 
@@ -15,7 +14,7 @@ public class ControlParser {
     private SharedPreferences preference;
     private Context context;
 
-    public static final String KEY_CAMERA_PREVIEW = "CameraView_cameraPreview";
+    public static final String KEY_CAMERA_PREVIEW_SURFACE = "CameraView_cameraPreviewSurface";
     public static final String KEY_CAMERA_FACING = "CameraView_cameraFacing";
     public static final String KEY_CAMERA_FLASH = "CameraView_cameraFlash";
     public static final String KEY_CAMERA_GRID = "CameraView_cameraGrid";
@@ -38,15 +37,36 @@ public class ControlParser {
     public ControlParser(@NonNull Context context, SharedPreferences preference) {
         this.preference = preference;
         this.context = context;
-        checkCamera2ApiSupport();
     }
 
     private int getFrontCameraEngine() {
-        return preference.getInt(KEY_CAMERA_ENGINE_FRONT, Engine.CAMERA2.value());
+        return preference.getInt(KEY_CAMERA_ENGINE_FRONT, getDefaultFrontCameraEngine());
     }
 
     private int getBackCameraEngine() {
-        return preference.getInt(KEY_CAMERA_ENGINE_BACK, Engine.CAMERA2.value());
+        return preference.getInt(KEY_CAMERA_ENGINE_BACK, getDefaultBackCameraEngine());
+    }
+
+    private int getDefaultFrontCameraEngine() {
+//        if (CameraUtils.isSamsungDevice() || CameraUtils.isVivoDevice() || CameraUtils.isOppoDevice()) {
+//            return Engine.CAMERA1.value();
+//        }else
+        if (CameraUtils.isFrontCameraSupportCamera2api(context)) {
+            return Engine.CAMERA2.value();
+        } else {
+            return Engine.CAMERA1.value();
+        }
+    }
+
+    private int getDefaultBackCameraEngine() {
+//        if (CameraUtils.isSamsungDevice() || CameraUtils.isVivoDevice() || CameraUtils.isOppoDevice()) {
+//            return Engine.CAMERA1.value();
+//        } else
+        if (CameraUtils.isBackCameraSupportCamera2api(context)) {
+            return Engine.CAMERA2.value();
+        } else {
+            return Engine.CAMERA1.value();
+        }
     }
 
     private void setFrontCameraEngine(int value) {
@@ -57,38 +77,30 @@ public class ControlParser {
         preference.edit().putInt(KEY_CAMERA_ENGINE_BACK, value).apply();
     }
 
-    private void checkCamera2ApiSupport() {
-        if (getFacing() == Facing.FRONT) {
-            if (getFrontCameraEngine() == Engine.CAMERA2.value()) {
-                if (!CameraUtils.isFrontCameraSupportsCamera2api(context)) {
-                    setEngine(Engine.CAMERA1.value());
-                }
-            }
-        } else if (getFacing() == Facing.BACK) {
-            if (getBackCameraEngine() == Engine.CAMERA2.value()) {
-                if (!CameraUtils.isBackCameraSupportsCamera2api(context)) {
-                    setEngine(Engine.CAMERA1.value());
-                }
-            }
-        }
-    }
-
-    private int getDefaultPreviewValue() {
-        if(CameraUtils.isGLSurfaceSupported()) {
+    private int getDefaultPreviewSurfaceValue() {
+        if (CameraUtils.isGLSurfaceSupported()) {
             return Preview.GL_SURFACE.value();
-        } else {
-           return Preview.TEXTURE.value();
+        }
+//        else if (Build.VERSION.SDK_INT == Build.VERSION_CODES.N
+//                || Build.VERSION.SDK_INT == Build.VERSION_CODES.N_MR1
+//                || Build.VERSION.SDK_INT == Build.VERSION_CODES.M
+//                || Build.VERSION.SDK_INT == Build.VERSION_CODES.LOLLIPOP_MR1
+//        ) {
+//            return Preview.TEXTURE.value();
+//        }
+        else {
+            return Preview.SURFACE.value();
         }
     }
 
     @NonNull
-    public Preview getPreview() {
-        int preview = preference.getInt(KEY_CAMERA_PREVIEW, getDefaultPreviewValue());
+    public Preview getPreviewSurface() {
+        int preview = preference.getInt(KEY_CAMERA_PREVIEW_SURFACE, getDefaultPreviewSurfaceValue());
         return Preview.fromValue(preview);
     }
 
-    public void setPreview(int preview) {
-        preference.edit().putInt(KEY_CAMERA_PREVIEW, preview).apply();
+    public void setPreviewSurface(int preview) {
+        preference.edit().putInt(KEY_CAMERA_PREVIEW_SURFACE, preview).apply();
     }
 
     @NonNull
@@ -146,6 +158,7 @@ public class ControlParser {
         int audioCodec = preference.getInt(KEY_CAMERA_AUDIO_CODEC, AudioCodec.DEFAULT.value());
         return AudioCodec.fromValue(audioCodec);
     }
+
     public void setAudioCodec(int value) {
         preference.edit().putInt(KEY_CAMERA_AUDIO_CODEC, value).apply();
     }
@@ -167,7 +180,7 @@ public class ControlParser {
         return PictureFormat.fromValue(pictureFormat);
     }
 
-    public boolean canShowPreviewOverOtherApp(){
+    public boolean canShowPreviewOverOtherApp() {
         return preference.getBoolean(KEY_CAMERA_SHOW_PREVIEW_OVER_OTHER_APP, false);
     }
 
@@ -175,7 +188,8 @@ public class ControlParser {
         preference.edit().putBoolean(KEY_CAMERA_SHOW_PREVIEW_OVER_OTHER_APP, value).apply();
     }
 
-    public boolean canShowPreview(){
+
+    public boolean canShowPreview() {
         return preference.getBoolean(KEY_CAMERA_SHOW_PREVIEW, false);
     }
 
@@ -183,7 +197,7 @@ public class ControlParser {
         preference.edit().putBoolean(KEY_CAMERA_SHOW_PREVIEW, value).apply();
     }
 
-    public float getZoom(){
+    public float getZoom() {
         return preference.getFloat(KEY_CAMERA_ZOOM, 0.0f);
     }
 
@@ -199,7 +213,6 @@ public class ControlParser {
 
     public void setFacing(int face) {
         preference.edit().putInt(KEY_CAMERA_FACING, face).apply();
-        checkCamera2ApiSupport();
     }
 
     @NonNull

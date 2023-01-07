@@ -73,6 +73,11 @@ public class SurfaceCameraPreview extends CameraPreview<SurfaceView, SurfaceHold
         return surfaceView;
     }
 
+    public boolean supportsCropping() {
+        //Should be false, but we are returning true to fit preview
+        return true;
+    }
+
     @NonNull
     @Override
     public View getRootView() {

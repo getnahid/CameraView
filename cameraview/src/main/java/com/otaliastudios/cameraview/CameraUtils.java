@@ -52,6 +52,8 @@ public class CameraUtils {
     private final static CameraLogger LOG = CameraLogger.create(TAG);
     public static final String KEY_FRONT_CAMERA_SUPPORT_CAMERA2_API = "key_front_camera_support_camera2_api";
     public static final String KEY_BACK_CAMERA_SUPPORT_CAMERA2_API = "key_back_camera_support_camera2_api";
+    public static final String KEY_FRONT_SUPPORT_HARDWARE_LEVEL_3 = "key_front_support_hardware_level_3";
+    public static final String KEY_BACK_SUPPORT_HARDWARE_LEVEL_3 = "key_back_support_hardware_level_3";
     /**
      * Determines whether the device has valid camera sensors, so the library
      * can be used.
@@ -78,13 +80,18 @@ public class CameraUtils {
      */
     public static boolean hasCameraFacing(@SuppressWarnings("unused") @NonNull Context context,
                                           @NonNull Facing facing) {
-        int internal = Camera1Mapper.get().mapFacing(facing);
-        Camera.CameraInfo cameraInfo = new Camera.CameraInfo();
-        for (int i = 0, count = Camera.getNumberOfCameras(); i < count; i++) {
-            Camera.getCameraInfo(i, cameraInfo);
-            if (cameraInfo.facing == internal) return true;
+        try{
+            int internal = Camera1Mapper.get().mapFacing(facing);
+            Camera.CameraInfo cameraInfo = new Camera.CameraInfo();
+            for (int i = 0, count = Camera.getNumberOfCameras(); i < count; i++) {
+                Camera.getCameraInfo(i, cameraInfo);
+                if (cameraInfo.facing == internal) return true;
+            }
+            return false;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return true;
         }
-        return false;
     }
 
 
@@ -375,7 +382,7 @@ public class CameraUtils {
     }
 
     public static boolean isUriString(String path) {
-        if (path != null && path.contains("content://")) {
+        if (path != null && path.contains("://")) {
             return true;
         }
 
@@ -386,7 +393,9 @@ public class CameraUtils {
 //        if(Build.MANUFACTURER.equals("samsung")) {
 //            return false;
 //        } else
-        if (Build.MODEL.equals("Mi A1") || Build.MODEL.equals("MI 8 Lite") || Build.MODEL.equals("Mi A2 Lite") || Build.MODEL.equals("Redmi Note 6 Pro") || Build.MODEL.equals("Redmi Note 5 Pro") || Build.MODEL.equals("Mi A2") || Build.MODEL.equals("Redmi S2") || Build.MODEL.equals("Redmi Y2") || Build.MODEL.equals("Redmi 6 Pro") || Build.MODEL.equals("MI6") || Build.MODEL.equals("MI MAX 3") || Build.MODEL.equals("MI Note 3") || Build.MODEL.equals("MIX 2") || Build.MODEL.equals("MI 6X") || Build.MODEL.equals("Redmi 7")) {
+        if (Build.MODEL.equals("Mi A1") || Build.MODEL.equals("MI 8 Lite") || Build.MODEL.equals("Mi A2 Lite") || Build.MODEL.equals("Redmi Note 6 Pro") || Build.MODEL.equals("Redmi Note 5 Pro")
+                || Build.MODEL.equals("Mi A2") || Build.MODEL.equals("Redmi S2") || Build.MODEL.equals("Redmi Y2") || Build.MODEL.equals("Redmi 6 Pro") || Build.MODEL.equals("MI6")
+                || Build.MODEL.equals("MI MAX 3") || Build.MODEL.equals("MI Note 3") || Build.MODEL.equals("MIX 2") || Build.MODEL.equals("MI 6X") || Build.MODEL.equals("Redmi 7")) {
             return false;
         } else if (Build.MODEL.contains("ZenFone Max Pro M1") || Build.MODEL.contains("ZenFone Max Pro M2") || Build.MODEL.contains("ZenFone Max M2") || Build.MODEL.contains("ZenFone 5 Lite")) {
             return false;
@@ -431,14 +440,10 @@ public class CameraUtils {
             return false;
         } else if (Build.MODEL.equalsIgnoreCase("K5 Note")) {
             return false;
-        } else if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.LOLLIPOP_MR1) {
-            return false;
-        }
-
-        return true;
+        } else return Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1;
     }
 
-    private static boolean hasCamera2Support(Context context, String cameraId) {
+    private static boolean hasCameraSupport(Context context, String cameraId, int cameraSupportMetaData) {
         CameraManager manager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
         try {
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
@@ -456,9 +461,11 @@ public class CameraUtils {
                 Log.d(TAG, "Camera " + cameraId + " has unknown Camera2 support?!");
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                return support == CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_FULL || support == CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_3;
+                //return support == CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_FULL || support == CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_3;
+                // This is because some LEVEL_3 devices does not support camera2 api
+                return support == cameraSupportMetaData;
             } else {
-                return support == CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_FULL;
+                return support == cameraSupportMetaData;
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -479,26 +486,66 @@ public class CameraUtils {
                 backCameraId = getIdCamera1(Camera.CameraInfo.CAMERA_FACING_BACK);
             }
 
-            if (hasCamera2Support(context, frontCameraId)) {
+            if (!isSamsungDevice() && hasCameraSupport(context, frontCameraId, CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_FULL)) {
                 preferences.edit().putBoolean(KEY_FRONT_CAMERA_SUPPORT_CAMERA2_API, true).apply();
             }
 
-            if (hasCamera2Support(context, backCameraId)) {
+            if (!isSamsungDevice() && hasCameraSupport(context, backCameraId, CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_FULL)) {
                 preferences.edit().putBoolean(KEY_BACK_CAMERA_SUPPORT_CAMERA2_API, true).apply();
+            }
+
+            if (hasCameraSupport(context, frontCameraId, CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_3)) {
+                preferences.edit().putBoolean(KEY_FRONT_SUPPORT_HARDWARE_LEVEL_3, true).apply();
+            }
+
+            if (hasCameraSupport(context, backCameraId, CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_3)) {
+                preferences.edit().putBoolean(KEY_BACK_SUPPORT_HARDWARE_LEVEL_3, true).apply();
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    public static boolean isFrontCameraSupportsCamera2api(Context context) {
+    public static boolean isSamsungDevice() {
+        return Build.MANUFACTURER.equals("samsung");
+    }
+
+    public static boolean isVivoDevice() {
+        return Build.MANUFACTURER.contains("vivo");
+    }
+
+    public static boolean isOppoDevice() {
+        return Build.MANUFACTURER.contains("OPPO");
+    }
+
+    private static boolean isFrontCameraSupportsFullCamera2api(Context context) {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
         return preferences.getBoolean(KEY_FRONT_CAMERA_SUPPORT_CAMERA2_API, false);
     }
 
-    public static boolean isBackCameraSupportsCamera2api(Context context) {
+    private static boolean isBackCameraSupportsFullCamera2api(Context context) {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
         return preferences.getBoolean(KEY_BACK_CAMERA_SUPPORT_CAMERA2_API, false);
+    }
+
+    private static boolean isFrontCameraHardwareLevel3Supported(Context context) {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        return preferences.getBoolean(KEY_FRONT_SUPPORT_HARDWARE_LEVEL_3, false);
+    }
+
+    private static boolean isBackCameraHardwareLevel3Supported(Context context) {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        return preferences.getBoolean(KEY_BACK_SUPPORT_HARDWARE_LEVEL_3, false);
+    }
+
+    public static boolean isFrontCameraSupportCamera2api(Context context) {
+        return CameraUtils.isFrontCameraSupportsFullCamera2api(context)
+                || CameraUtils.isFrontCameraHardwareLevel3Supported(context);
+    }
+
+    public static boolean isBackCameraSupportCamera2api(Context context) {
+        return CameraUtils.isBackCameraSupportsFullCamera2api(context)
+                || CameraUtils.isBackCameraHardwareLevel3Supported(context);
     }
 
     private static String getIdCamera2(Context context, int cameraCharacteristicsId) {

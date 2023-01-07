@@ -357,7 +357,7 @@ public abstract class CameraBaseEngine extends CameraEngine {
                 @Override
                 public void run() {
                     if (collectCameraInfo(facing)) {
-                        restart();
+                        //restart();
                     } else {
                         mFacing = old;
                     }

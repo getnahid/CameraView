@@ -28,7 +28,6 @@ public class Full1VideoRecorder extends FullVideoRecorder {
         mCamera = camera;
         mEngine = engine;
         mCameraId = cameraId;
-        setSurfaceView((SurfaceView) mEngine.getPreview().getView());
     }
 
     @Override
